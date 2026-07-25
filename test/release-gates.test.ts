@@ -289,8 +289,8 @@ describe('release dependency gates', () => {
 
     expect(script).toContain('const dryRunPublishArgs = args.dryRun ? [\'--dry-run\', \'--ignore-scripts\'] : []')
     expect(script).toContain('const pnpmDryRunPublishArgs = args.dryRun ? [...dryRunPublishArgs, \'--no-git-checks\'] : []')
-    expect(script).toContain('[\'publish\', \'--access\', \'public\', ...pnpmDryRunPublishArgs]')
-    expect(script).toContain('[\'publish\', \'--access\', \'public\', ...dryRunPublishArgs]')
+    expect(script).toContain('[\'publish\', \'--access\', \'public\', ...prereleaseTagArgs, ...pnpmDryRunPublishArgs]')
+    expect(script).toContain('[\'publish\', \'--access\', \'public\', ...prereleaseTagArgs, ...dryRunPublishArgs]')
   })
 
   it('checks both runtime workspace packages for published versions', () => {
