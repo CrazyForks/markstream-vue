@@ -48,7 +48,7 @@ Markstream 是面向 AI 应用的多框架流式 Markdown 渲染器家族。本�
 
 ### markstream-angular
 - 包名：markstream-angular
-- 版本：0.0.8
+- 版本：0.0.9-beta.0
 - 成熟度标签：alpha
 - 框架/运行时：Angular standalone 组件，Angular 20+
 - 描述：Angular 20+ standalone streaming Markdown renderer for AI chat, LLM token streams, SSE/WebSocket output, incomplete Markdown, Mermaid, KaTeX, Monaco-powered code blocks, and safe Angular component rendering.
