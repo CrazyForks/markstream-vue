@@ -30,6 +30,33 @@ describe('linkify candidate filter', () => {
     expect(found[0].text).toBe('example.com')
   })
 
+  it('stops a bare link at a fullwidth closing parenthesis', () => {
+    const input = '当前浏览器预览打开的是 **百度首页**（https://www.baidu.com/），搜索框里已有提示文字「林俊杰带女友现身纽约看台」。'
+    const found = links(input)
+
+    expect(found).toHaveLength(1)
+    expect(found[0].href).toBe('https://www.baidu.com/')
+    expect(found[0].text).toBe('https://www.baidu.com/')
+    expect(flatten(parse(input)).filter(node => node?.type === 'text').map(node => node.content).join('')).toContain('），搜索框里已有提示文字「林俊杰带女友现身纽约看台」。')
+  })
+
+  it('preserves fullwidth closing parentheses that belong to a URL', () => {
+    const expectedHref = 'https://example.com/a%EF%BC%89b'
+
+    for (const input of [
+      'https://example.com/a）b',
+      'https://example.com/a%EF%BC%89b',
+      '<https://example.com/a）b>',
+      '（<https://example.com/a）b>）',
+      '[label](https://example.com/a）b)',
+    ]) {
+      const found = links(input)
+
+      expect(found).toHaveLength(1)
+      expect(found[0].href).toBe(expectedHref)
+    }
+  })
+
   it('does not linkify bare links inside markdown link labels', () => {
     const found = links('[example.com](https://target.test)')
 

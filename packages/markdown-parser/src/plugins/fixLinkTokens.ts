@@ -5,6 +5,7 @@ import { inferLinkifyDemotionContext, isDecodedFromRawPunycode, shouldDemoteFile
 // We hard-stop FULLWIDTH exclamation mark used as CJK punctuation.
 // ASCII `!` is valid in URLs (path/query/fragment), so do not stop on it.
 const LINKIFY_HARD_STOP_CHARS = ['！'] as const
+const PARENTHESIZED_LINKIFY_HARD_STOP_CHARS = ['！', '）'] as const
 
 type SyntheticLinkToken = MarkdownToken & {
   href?: string
@@ -194,13 +195,31 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
           continue
         }
 
-        const hrefStop = firstIndexOfAny(href, LINKIFY_HARD_STOP_CHARS)
+        let hardStopChars: readonly string[] = LINKIFY_HARD_STOP_CHARS
+        if (curToken.markup === 'linkify' && linkText?.includes('）')) {
+          let fullwidthParenDepth = 0
+          for (let j = 0; j < i; j++) {
+            const preceding = tokens[j]
+            if (preceding?.type !== 'text' || typeof preceding.content !== 'string')
+              continue
+            for (const char of preceding.content) {
+              if (char === '（')
+                fullwidthParenDepth++
+              else if (char === '）' && fullwidthParenDepth > 0)
+                fullwidthParenDepth--
+            }
+          }
+          if (fullwidthParenDepth > 0)
+            hardStopChars = PARENTHESIZED_LINKIFY_HARD_STOP_CHARS
+        }
+
+        const hrefStop = firstIndexOfAny(href, hardStopChars)
         // Prefer splitting by the visible text token, but also trim href if it contains stop chars.
         for (let j = i + 1; j < closeIdx; j++) {
           const t = tokens[j]
           if (t?.type !== 'text' || typeof t.content !== 'string')
             continue
-          const stopAt = firstIndexOfAny(t.content, LINKIFY_HARD_STOP_CHARS)
+          const stopAt = firstIndexOfAny(t.content, hardStopChars)
           if (stopAt === -1)
             continue
 

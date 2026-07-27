@@ -277,6 +277,42 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
   })
 
+  it('keeps a parenthesized bare link stable when its closing punctuation arrives', () => {
+    const md = getMarkdown('stream-parser-fullwidth-link-boundary')
+    const coldMd = getMarkdown('stream-parser-fullwidth-link-boundary-cold')
+    const base = buildLargeAppendFriendlyDoc(40)
+    const prefix = `${base}当前浏览器预览打开的是 **百度首页**（`
+    const stages = [
+      { suffix: 'https://www.baidu', types: ['text', 'strong', 'text', 'link'] },
+      { suffix: 'https://www.baidu.com/', types: ['text', 'strong', 'text', 'link'] },
+      { suffix: 'https://www.baidu.com/）', types: ['text', 'strong', 'text', 'link', 'text'] },
+      { suffix: 'https://www.baidu.com/），搜索框', types: ['text', 'strong', 'text', 'link', 'text'] },
+    ]
+
+    for (const stage of stages) {
+      const source = prefix + stage.suffix
+      const streamed = parseMarkdownToStructure(source, md, {
+        final: false,
+        streamParse: true,
+        __reuseStableTopLevelNodes: true,
+      } as any)
+      const cold = parseMarkdownToStructure(source, coldMd, {
+        final: false,
+        streamParse: false,
+      })
+      const children = (streamed.at(-1) as any).children
+
+      expect(streamed).toEqual(cold)
+      expect(children.map((node: any) => node.type)).toEqual(stage.types)
+      expect(children.find((node: any) => node.type === 'link')?.href).toBe(
+        stage.suffix.includes('.com') ? 'https://www.baidu.com/' : 'https://www.baidu',
+      )
+    }
+
+    expect(getStreamStats(md).tailHits).toBeGreaterThan(0)
+    expect(getStreamStats(md).fullParses).toBe(1)
+  })
+
   it('does not reuse mixed streaming nodes for a final sync parse', () => {
     const md = getMarkdown('stream-parser-mixed-final-fallback')
     const source = Array.from({ length: 4 }, (_, index) => buildMixedSection(index + 1)).join('')
