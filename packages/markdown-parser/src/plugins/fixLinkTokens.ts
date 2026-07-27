@@ -127,6 +127,22 @@ function collectLinkifyText(tokens: MarkdownToken[], openIndex: number, closeInd
   return text || null
 }
 
+function firstUnmatchedFullwidthClosingParen(input: string) {
+  let depth = 0
+  for (let index = 0; index < input.length; index++) {
+    const char = input[index]
+    if (char === '（') {
+      depth++
+    }
+    else if (char === '）') {
+      if (depth === 0)
+        return index
+      depth--
+    }
+  }
+  return -1
+}
+
 export function applyFixLinkTokens(md: MarkdownIt) {
   // Run after the inline rule so markdown-it has produced inline tokens
   // for block-level tokens; we then adjust each inline token's children
@@ -162,20 +178,38 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
   const hasInlineCode = tokens.some(token => token.type === 'code_inline')
   const fullwidthParenDepthAtLink = new Map<MarkdownToken, number>()
   let fullwidthParenDepth = 0
-  let linkDepth = 0
-  for (const token of tokens) {
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index]
     if (token.type === 'link_open') {
-      if (linkDepth === 0 && token.markup === 'linkify')
+      let closeIndex = -1
+      for (let candidate = index + 1; candidate < tokens.length; candidate++) {
+        if (tokens[candidate]?.type === 'link_close') {
+          closeIndex = candidate
+          break
+        }
+      }
+
+      if (closeIndex !== -1 && token.markup === 'linkify') {
         fullwidthParenDepthAtLink.set(token, fullwidthParenDepth)
-      linkDepth++
+        const linkText = collectLinkifyText(tokens, index, closeIndex)
+        const stopAt = fullwidthParenDepth > 0 && linkText
+          ? firstUnmatchedFullwidthClosingParen(linkText)
+          : -1
+        if (stopAt !== -1 && linkText) {
+          for (const char of linkText.slice(stopAt)) {
+            if (char === '（')
+              fullwidthParenDepth++
+            else if (char === '）' && fullwidthParenDepth > 0)
+              fullwidthParenDepth--
+          }
+        }
+      }
+
+      if (closeIndex !== -1)
+        index = closeIndex
       continue
     }
-    if (token.type === 'link_close') {
-      if (linkDepth > 0)
-        linkDepth--
-      continue
-    }
-    if (linkDepth > 0 || token.type !== 'text' || typeof token.content !== 'string')
+    if (token.type !== 'text' || typeof token.content !== 'string')
       continue
     for (const char of token.content) {
       if (char === '（')
@@ -223,21 +257,9 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
           && linkText?.includes('）')
           && (fullwidthParenDepthAtLink.get(curToken) ?? 0) > 0
         ) {
-          let nestedLinkParenDepth = 0
-          for (let j = 0; j < linkText.length; j++) {
-            const char = linkText[j]
-            if (char === '（') {
-              nestedLinkParenDepth++
-            }
-            else if (char === '）') {
-              if (nestedLinkParenDepth === 0) {
-                if (stopAt === -1 || j < stopAt)
-                  stopAt = j
-                break
-              }
-              nestedLinkParenDepth--
-            }
-          }
+          const fullwidthParenStop = firstUnmatchedFullwidthClosingParen(linkText)
+          if (fullwidthParenStop !== -1 && (stopAt === -1 || fullwidthParenStop < stopAt))
+            stopAt = fullwidthParenStop
         }
 
         const hrefStop = firstIndexOfAny(href, LINKIFY_HARD_STOP_CHARS)

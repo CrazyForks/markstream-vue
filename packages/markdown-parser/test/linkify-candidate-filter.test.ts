@@ -88,6 +88,16 @@ describe('linkify candidate filter', () => {
     ))
   })
 
+  it('consumes a wrapper closed by an earlier bare link', () => {
+    const found = links('（https://one.test/） and https://two.test/a）b')
+
+    expect(found).toHaveLength(2)
+    expect(found.map(link => link.href)).toEqual([
+      'https://one.test/',
+      'https://two.test/a%EF%BC%89b',
+    ])
+  })
+
   it('stops a wrapped bare link when the paragraph also contains inline code', () => {
     const input = '`note`（https://www.baidu.com/）'
     const found = links(input)
