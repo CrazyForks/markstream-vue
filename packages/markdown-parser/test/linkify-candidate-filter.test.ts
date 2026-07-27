@@ -57,6 +57,35 @@ describe('linkify candidate filter', () => {
     }
   })
 
+  it('preserves balanced fullwidth parentheses inside a wrapped URL', () => {
+    const input = '（https://example.com/a（x）b）after'
+    const found = links(input)
+
+    expect(found).toHaveLength(1)
+    expect(found[0].href).toBe('https://example.com/a%EF%BC%88x%EF%BC%89b')
+    expect(found[0].text).toBe('https://example.com/a（x）b')
+    expect(flatten(parse(input)).filter(node => node?.type === 'text').map(node => node.content).join('')).toContain('）after')
+  })
+
+  it('stops a wrapped bare link when the paragraph also contains inline code', () => {
+    const input = '`note`（https://www.baidu.com/）'
+    const found = links(input)
+
+    expect(found).toHaveLength(1)
+    expect(found[0].href).toBe('https://www.baidu.com/')
+    expect(found[0].text).toBe('https://www.baidu.com/')
+  })
+
+  it('ignores parentheses inside earlier links when finding the wrapper context', () => {
+    const found = links('<https://one.test/a（b> and https://two.test/c）d')
+
+    expect(found).toHaveLength(2)
+    expect(found.map(link => link.href)).toEqual([
+      'https://one.test/a%EF%BC%88b',
+      'https://two.test/c%EF%BC%89d',
+    ])
+  })
+
   it('does not linkify bare links inside markdown link labels', () => {
     const found = links('[example.com](https://target.test)')
 

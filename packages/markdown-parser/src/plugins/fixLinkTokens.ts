@@ -5,7 +5,6 @@ import { inferLinkifyDemotionContext, isDecodedFromRawPunycode, shouldDemoteFile
 // We hard-stop FULLWIDTH exclamation mark used as CJK punctuation.
 // ASCII `!` is valid in URLs (path/query/fragment), so do not stop on it.
 const LINKIFY_HARD_STOP_CHARS = ['！'] as const
-const PARENTHESIZED_LINKIFY_HARD_STOP_CHARS = ['！', '）'] as const
 
 type SyntheticLinkToken = MarkdownToken & {
   href?: string
@@ -160,9 +159,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
   if (tokens.length < 3)
     return tokens
 
-  // 如果包含 code_inline 类型的 token，说明是包含内联代码的链接，直接返回原样，避免错误处理
-  if (tokens.some(token => token.type === 'code_inline'))
-    return tokens
+  const hasInlineCode = tokens.some(token => token.type === 'code_inline')
 
   const linkifyDemotionContext = inferLinkifyDemotionContext(raw)
   for (let i = 0; i <= tokens.length - 1; i++) {
@@ -186,7 +183,8 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
         const linkText = collectLinkifyText(tokens, i, closeIdx)
         const href = getHrefFromLinkOpen(curToken)
         if (
-          curToken.markup === 'linkify'
+          !hasInlineCode
+          && curToken.markup === 'linkify'
           && linkText
           && !isDecodedFromRawPunycode(linkText, href, raw)
           && shouldDemoteFilenameLikeLinkify(linkText, linkifyDemotionContext)
@@ -195,11 +193,23 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
           continue
         }
 
-        let hardStopChars: readonly string[] = LINKIFY_HARD_STOP_CHARS
+        let stopAt = firstIndexOfAny(linkText ?? '', LINKIFY_HARD_STOP_CHARS)
         if (curToken.markup === 'linkify' && linkText?.includes('）')) {
           let fullwidthParenDepth = 0
+          let priorLinkDepth = 0
           for (let j = 0; j < i; j++) {
             const preceding = tokens[j]
+            if (preceding?.type === 'link_open') {
+              priorLinkDepth++
+              continue
+            }
+            if (preceding?.type === 'link_close') {
+              if (priorLinkDepth > 0)
+                priorLinkDepth--
+              continue
+            }
+            if (priorLinkDepth > 0)
+              continue
             if (preceding?.type !== 'text' || typeof preceding.content !== 'string')
               continue
             for (const char of preceding.content) {
@@ -209,23 +219,42 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
                 fullwidthParenDepth--
             }
           }
-          if (fullwidthParenDepth > 0)
-            hardStopChars = PARENTHESIZED_LINKIFY_HARD_STOP_CHARS
+          if (fullwidthParenDepth > 0) {
+            let nestedLinkParenDepth = 0
+            for (let j = 0; j < linkText.length; j++) {
+              const char = linkText[j]
+              if (char === '（') {
+                nestedLinkParenDepth++
+              }
+              else if (char === '）') {
+                if (nestedLinkParenDepth === 0) {
+                  if (stopAt === -1 || j < stopAt)
+                    stopAt = j
+                  break
+                }
+                nestedLinkParenDepth--
+              }
+            }
+          }
         }
 
-        const hrefStop = firstIndexOfAny(href, hardStopChars)
+        const hrefStop = firstIndexOfAny(href, LINKIFY_HARD_STOP_CHARS)
         // Prefer splitting by the visible text token, but also trim href if it contains stop chars.
+        let remainingStopAt = stopAt
         for (let j = i + 1; j < closeIdx; j++) {
           const t = tokens[j]
           if (t?.type !== 'text' || typeof t.content !== 'string')
             continue
-          const stopAt = firstIndexOfAny(t.content, hardStopChars)
-          if (stopAt === -1)
+          if (remainingStopAt >= t.content.length) {
+            remainingStopAt -= t.content.length
             continue
+          }
+          if (remainingStopAt < 0)
+            break
 
-          const stopChar = t.content[stopAt]
-          const before = t.content.slice(0, stopAt)
-          let tail = t.content.slice(stopAt)
+          const stopChar = t.content[remainingStopAt]
+          const before = t.content.slice(0, remainingStopAt)
+          let tail = t.content.slice(remainingStopAt)
           // Move remaining text tokens that were inside the linkify span to the tail.
           for (let k = j + 1; k < closeIdx; k++) {
             const tk = tokens[k]
@@ -243,7 +272,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
           }
 
           let newHref = href
-          if (hrefStop !== -1) {
+          if (stopChar === '！' && hrefStop !== -1) {
             newHref = href.slice(0, hrefStop)
           }
           else if (tail) {
@@ -270,6 +299,8 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
         }
       }
     }
+    if (hasInlineCode)
+      continue
     if (curToken?.type === 'em_open' && tokens[i - 1]?.type === 'text' && tokens[i - 1].content?.endsWith('*')) {
       const beforeText = tokens[i - 1].content?.replace(/(\*+)$/, '') || ''
       tokens[i - 1].content = beforeText
@@ -647,6 +678,9 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
       }
     }
   }
+
+  if (hasInlineCode)
+    return tokens
 
   // Post-pass: linkify-it strips trailing ASCII punctuation like `!`, but in some URLs
   // it's meaningful (e.g. `?q=!`, `#!`). Merge a standalone leading `!` text token
