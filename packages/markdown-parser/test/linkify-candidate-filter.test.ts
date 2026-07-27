@@ -67,6 +67,27 @@ describe('linkify candidate filter', () => {
     expect(flatten(parse(input)).filter(node => node?.type === 'text').map(node => node.content).join('')).toContain('）after')
   })
 
+  it('matches the outer closing parenthesis before a percent-encoded suffix', () => {
+    const found = links('（https://example.com/a（x）b）%20after')
+
+    expect(found).toHaveLength(1)
+    expect(found[0].href).toBe('https://example.com/a%EF%BC%88x%EF%BC%89b')
+    expect(found[0].text).toBe('https://example.com/a（x）b')
+  })
+
+  it('handles multiple parenthesized bare links in one inline block', () => {
+    const found = links(Array.from(
+      { length: 32 },
+      (_, index) => `（https://example.com/${index}）`,
+    ).join(' '))
+
+    expect(found).toHaveLength(32)
+    expect(found.map(link => link.href)).toEqual(Array.from(
+      { length: 32 },
+      (_, index) => `https://example.com/${index}`,
+    ))
+  })
+
   it('stops a wrapped bare link when the paragraph also contains inline code', () => {
     const input = '`note`（https://www.baidu.com/）'
     const found = links(input)

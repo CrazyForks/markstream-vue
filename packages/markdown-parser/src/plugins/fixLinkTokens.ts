@@ -160,6 +160,30 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
     return tokens
 
   const hasInlineCode = tokens.some(token => token.type === 'code_inline')
+  const fullwidthParenDepthAtLink = new Map<MarkdownToken, number>()
+  let fullwidthParenDepth = 0
+  let linkDepth = 0
+  for (const token of tokens) {
+    if (token.type === 'link_open') {
+      if (linkDepth === 0 && token.markup === 'linkify')
+        fullwidthParenDepthAtLink.set(token, fullwidthParenDepth)
+      linkDepth++
+      continue
+    }
+    if (token.type === 'link_close') {
+      if (linkDepth > 0)
+        linkDepth--
+      continue
+    }
+    if (linkDepth > 0 || token.type !== 'text' || typeof token.content !== 'string')
+      continue
+    for (const char of token.content) {
+      if (char === '（')
+        fullwidthParenDepth++
+      else if (char === '）' && fullwidthParenDepth > 0)
+        fullwidthParenDepth--
+    }
+  }
 
   const linkifyDemotionContext = inferLinkifyDemotionContext(raw)
   for (let i = 0; i <= tokens.length - 1; i++) {
@@ -194,46 +218,24 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
         }
 
         let stopAt = firstIndexOfAny(linkText ?? '', LINKIFY_HARD_STOP_CHARS)
-        if (curToken.markup === 'linkify' && linkText?.includes('）')) {
-          let fullwidthParenDepth = 0
-          let priorLinkDepth = 0
-          for (let j = 0; j < i; j++) {
-            const preceding = tokens[j]
-            if (preceding?.type === 'link_open') {
-              priorLinkDepth++
-              continue
+        if (
+          curToken.markup === 'linkify'
+          && linkText?.includes('）')
+          && (fullwidthParenDepthAtLink.get(curToken) ?? 0) > 0
+        ) {
+          let nestedLinkParenDepth = 0
+          for (let j = 0; j < linkText.length; j++) {
+            const char = linkText[j]
+            if (char === '（') {
+              nestedLinkParenDepth++
             }
-            if (preceding?.type === 'link_close') {
-              if (priorLinkDepth > 0)
-                priorLinkDepth--
-              continue
-            }
-            if (priorLinkDepth > 0)
-              continue
-            if (preceding?.type !== 'text' || typeof preceding.content !== 'string')
-              continue
-            for (const char of preceding.content) {
-              if (char === '（')
-                fullwidthParenDepth++
-              else if (char === '）' && fullwidthParenDepth > 0)
-                fullwidthParenDepth--
-            }
-          }
-          if (fullwidthParenDepth > 0) {
-            let nestedLinkParenDepth = 0
-            for (let j = 0; j < linkText.length; j++) {
-              const char = linkText[j]
-              if (char === '（') {
-                nestedLinkParenDepth++
+            else if (char === '）') {
+              if (nestedLinkParenDepth === 0) {
+                if (stopAt === -1 || j < stopAt)
+                  stopAt = j
+                break
               }
-              else if (char === '）') {
-                if (nestedLinkParenDepth === 0) {
-                  if (stopAt === -1 || j < stopAt)
-                    stopAt = j
-                  break
-                }
-                nestedLinkParenDepth--
-              }
+              nestedLinkParenDepth--
             }
           }
         }
