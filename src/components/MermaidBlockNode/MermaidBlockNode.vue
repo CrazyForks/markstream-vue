@@ -1056,6 +1056,12 @@ function mountModalClone() {
   clone.style.height = '100%'
   clone.style.maxHeight = '100%'
 
+  const content = clone.querySelector('._mermaid') as HTMLElement | null
+  if (content) {
+    content.style.contain = 'none'
+    content.style.contentVisibility = 'visible'
+  }
+
   // find the wrapper inside the clone using the data attribute and keep a ref
   const wrapper = clone.querySelector(
     '[data-mermaid-wrapper]',

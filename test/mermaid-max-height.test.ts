@@ -104,4 +104,20 @@ describe('mermaid block max height', () => {
 
     wrapper.unmount()
   })
+
+  it('does not paint-contain fullscreen SVG content at the preview height', async () => {
+    const { wrapper, content } = await renderWithMaxHeight('500px')
+    content.innerHTML = '<svg viewBox="0 0 100 200"></svg>'
+
+    ;(wrapper.vm as any).openModal()
+    await nextTick()
+    await nextTick()
+
+    const modalContent = document.body.querySelector<HTMLElement>('[data-mermaid-modal-clone="1"] ._mermaid')
+    expect(modalContent?.style.height).toBe('2000px')
+    expect(modalContent?.style.contain).toBe('none')
+    expect(modalContent?.style.contentVisibility).toBe('visible')
+
+    wrapper.unmount()
+  })
 })
