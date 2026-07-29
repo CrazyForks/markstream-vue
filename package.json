@@ -333,7 +333,7 @@
     "markdown-it-emoji": "^3.1.0",
     "material-icon-theme": "^5.37.0",
     "picocolors": "^1.1.1",
-    "playwright-core": "^1.61.1",
+    "playwright-core": "^1.62.0",
     "postcss-cli": "^11.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
