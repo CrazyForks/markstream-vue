@@ -4864,7 +4864,13 @@ onUnmounted(() => {
   grid-area: 1 / 1;
   z-index: 1;
 }
-:deep(.code-editor-layer > pre.code-pre-fallback) {
+/* No :deep() here (or for the pre.code-pre-fallback rules below): the
+   fallback <pre> is PreCodeNode's root element, and a child component's root
+   carries this SFC's scope id, so a plain scoped selector matches it both as
+   a descendant (inside .code-editor-layer) and as this component's own root
+   (the standalone fallback). :deep() would emit an ancestor selector that
+   cannot match the standalone-root case. */
+.code-editor-layer > pre.code-pre-fallback {
   grid-area: 1 / 1;
   position: relative;
   z-index: 2;
@@ -5122,7 +5128,7 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-:deep(pre.code-pre-fallback) {
+pre.code-pre-fallback {
   margin: 0;
   box-sizing: border-box;
   width: 100%;
@@ -5146,19 +5152,19 @@ onUnmounted(() => {
   );
 }
 
-:deep(pre.code-pre-fallback > code) {
+pre.code-pre-fallback :deep(code) {
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
   font-family: inherit;
 }
 
-:deep(pre.code-pre-fallback.is-wrap) {
+pre.code-pre-fallback.is-wrap {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-:deep(pre.code-pre-fallback.markstream-pre--diff-preview) {
+pre.code-pre-fallback.markstream-pre--diff-preview {
   padding-left: 0;
   padding-right: 0;
 }
