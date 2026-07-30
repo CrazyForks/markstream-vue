@@ -1,10 +1,10 @@
 # Markstream
 
-> 面向 AI 应用的多框架流式 Markdown 渲染器家族 — 支持 Vue、React、Svelte、Angular、Nuxt 和 Next.js。
+> 面向 AI 应用的多框架流式 Markdown 渲染器家族 — 支持 Vue、React、Octane、Svelte、Angular、Nuxt 和 Next.js。
 
 Markstream 专为在用户眼前持续变化的 Markdown 场景而构建：LLM token 流、SSE/WebSocket 输出、AI 聊天消息、未闭合 Markdown 中间态、长文档、渐进式 Mermaid 图表、KaTeX 数学公式、流式代码块以及安全的组件化渲染。
 
-Vue 3、Nuxt 和 VitePress 项目优先使用 `markstream-vue`；React、Svelte、Angular、Vue 2 项目使用对应 sibling package。普通 AI 聊天可以直接传不断累积的 `content` 字符串，只有外层已经负责解析、batch 或 worker AST 时才需要 `nodes` 路径。
+Vue 3、Nuxt 和 VitePress 项目优先使用 `markstream-vue`；React、Octane、Svelte、Angular、Vue 2 项目使用对应 sibling package。普通 AI 聊天可以直接传不断累积的 `content` 字符串，只有外层已经负责解析、batch 或 worker AST 时才需要 `nodes` 路径。
 
 [![English](https://img.shields.io/badge/docs-English-blue)](README.md)
 [![Docs](https://img.shields.io/badge/docs-中文文档-blue)](https://markstream.simonhe.me/zh/guide)
@@ -40,6 +40,7 @@ Vue 包：
 | --- | --- | --- | --- |
 | `markstream-vue` | Vue 3 / Nuxt / VitePress | `pnpm add markstream-vue` | [框架总览](https://markstream.simonhe.me/zh/frameworks) · [Vue 指南](https://markstream.simonhe.me/zh/frameworks/vue) · [Nuxt 指南](https://markstream.simonhe.me/zh/frameworks/nuxt) |
 | `markstream-react` | React / Next.js / Remix | `pnpm add markstream-react` | [React 指南](https://markstream.simonhe.me/zh/frameworks/react) · [Next.js 指南](https://markstream.simonhe.me/zh/frameworks/next) |
+| `markstream-octane` | Octane | `pnpm add markstream-octane octane` | [包使用指南](./packages/markstream-octane/README.md) · [本地 Playground](./playground-octane) |
 | `markstream-svelte` | Svelte 5 | `pnpm add markstream-svelte svelte@^5` | [Svelte 指南](https://markstream.simonhe.me/zh/frameworks/svelte) |
 | `markstream-angular` | Angular standalone | `pnpm add markstream-angular` | [Angular 指南](https://markstream.simonhe.me/zh/frameworks/angular) |
 | `markstream-vue2` | Vue 2.6 / 2.7 | `pnpm add markstream-vue2` | [Vue 2 指南](https://markstream.simonhe.me/zh/frameworks/vue2) · [快速开始](https://markstream.simonhe.me/zh/guide/vue2-quick-start) |
@@ -50,6 +51,7 @@ Vue 包：
 
 - **Vue 3 / Nuxt / VitePress** → `markstream-vue`
 - **React / Next.js / Remix** → `markstream-react`
+- **Octane** → `markstream-octane`
 - **Svelte 5** → `markstream-svelte`
 - **Angular standalone** → `markstream-angular`
 - **Vue 2.6 / 2.7** → `markstream-vue2`
@@ -60,7 +62,7 @@ Vue 包：
 
 `markstream-vue` 已进入稳定的 1.x API 契约；当前 npm 包仍可能带 beta tag，用于发布门禁和跨框架家族同步。稳定面包括：`MarkdownRender`、流式内容渲染、预解析节点渲染、安全 HTML 策略、可选 Mermaid / KaTeX / Monaco / D2 / Infographic 集成、虚拟滚动协调、CSS 导出、worker client 子路径以及 Vite / Nuxt / VitePress 的 SSR 导入。
 
-跨框架渲染器（`markstream-react`、`markstream-svelte`、`markstream-angular`、`markstream-vue2`）已可用并积极开发中。请查看各包文档了解 API 成熟度、框架支持和已知限制。
+跨框架渲染器（`markstream-react`、`markstream-octane`、`markstream-svelte`、`markstream-angular`、`markstream-vue2`）已可用并积极开发中。请查看各包文档了解 API 成熟度、框架支持和已知限制。
 
 - [速览](#速览)
 - [按场景选择入口](#按场景选择入口)
@@ -93,7 +95,7 @@ Vue 包：
 - 为 **流式 Markdown**（AI/聊天/SSE）打造，目标是减少闪烁并保持内存可预期。
 - **双渲染模式**：长文档虚拟化窗口，或“打字机”式增量批次。
 - **渐进式图表**（Mermaid）与 **流式代码块**（Monaco/Shiki），跟上 diff/增量输出。
-- 同时支持 **Markdown 字符串或预解析节点**，可在 Vue、React、Svelte 和 Angular 中嵌入 **自定义框架组件**。
+- 同时支持 **Markdown 字符串或预解析节点**，可在 Vue、React、Octane、Svelte 和 Angular 中嵌入 **自定义框架组件**。
 - TypeScript 优先，开箱默认即可上线（导入 CSS 即用）。
 
 ## 按场景选择入口
@@ -113,6 +115,7 @@ Vue 包：
 | --- | --- |
 | Vue 3 | https://markstream-vue.simonhe.me/ |
 | React | https://markstream-react.pages.dev/ |
+| Octane | `pnpm play:octane` |
 | Svelte | https://markstream-svelte.pages.dev/ |
 | Angular | https://markstream-angular.pages.dev/ |
 | Nuxt | https://markstream-nuxt.pages.dev/ |
@@ -210,6 +213,23 @@ export function Message({ content, isDone }: { content: string, isDone: boolean 
 ```
 
 Next.js 的实时 SSE/WebSocket 区域用 root `markstream-react` 放在 `'use client'` 组件里；SSR-first 或 server-only Markdown 看 [Next.js 指南](https://markstream.simonhe.me/zh/frameworks/next)。
+
+### Octane
+
+```bash
+pnpm add markstream-octane octane
+```
+
+```tsrx
+import { NodeRenderer } from 'markstream-octane'
+import 'markstream-octane/index.css'
+
+export function Message(props: { content: string, isDone: boolean }) {
+  return <NodeRenderer content={props.content} final={props.isDone} />
+}
+```
+
+请按[包使用指南](./packages/markstream-octane/README.md)在 Vite 中启用 `octane/compiler/vite` 并配置 `.tsrx`。发布包已经包含编译后的 client/server 入口，应用源码仍按正常 Octane 流程编译。
 
 ### Svelte 5
 

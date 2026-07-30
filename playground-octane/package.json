@@ -1,0 +1,27 @@
+{
+  "name": "playground-octane",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter markstream-octane build && vite --host 0.0.0.0 --port 4176",
+    "build": "pnpm --filter markstream-octane build && tsrx-tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4176",
+    "typecheck": "tsrx-tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "katex": "^0.16.22",
+    "markstream-octane": "workspace:*",
+    "mermaid": "^11.12.3",
+    "octane": "^0.1.21",
+    "stream-markdown": "^0.0.16",
+    "stream-monaco": "^0.0.48"
+  },
+  "devDependencies": {
+    "@tsrx/core": "^0.1.56",
+    "@tsrx/typescript-plugin": "^0.3.118",
+    "@types/react": "^19.2.17",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
+  }
+}
