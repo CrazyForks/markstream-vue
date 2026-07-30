@@ -2869,6 +2869,7 @@ function updateCollapsedHeight(options: EditorHostHeightSyncOptions = {}) {
       const h = applyCollapsedContainerHeight(container, measuredHeight, max, {
         clearEstimatedFloor: true,
         allowBelowEstimatedFloor: foldedDiffReadyForShrink || allowBelowPlainEstimatedFloor || allowBelowStreamingDiffEstimatedFloor,
+        preserveScrollableOverflow: shouldRestoreScrollableOverflow(container),
       })
       if (hasVisibleCollapsedDiffSummary && h < max - PIXEL_EPSILON)
         lastStableCollapsedDiffHeight.value = Math.max(lastStableCollapsedDiffHeight.value ?? 0, h)

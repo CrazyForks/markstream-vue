@@ -8,6 +8,9 @@ function helpers() {
   return (globalThis as any).__streamMonacoHelpers
 }
 
+let reportedContentHeight = 0
+let triggerEditorContentSizeChange = () => {}
+
 function makeNode(lineCount: number) {
   const code = Array.from({ length: lineCount }, (_, index) => `const line${index} = ${index}`).join('\n')
   return {
@@ -53,12 +56,18 @@ async function flush() {
 function resetHelpers(contentHeight: number) {
   resetCodeBlockRuntimeReadyForTest()
   const runtime = helpers()
+  reportedContentHeight = contentHeight
+  triggerEditorContentSizeChange = () => {}
   const editorView = {
     getModel: () => ({ getValue: () => '', getLineCount: () => 100 }),
     getOption: () => 18,
     updateOptions: vi.fn(),
     layout: vi.fn(),
-    getContentHeight: () => contentHeight,
+    getContentHeight: () => reportedContentHeight,
+    onDidContentSizeChange: (callback: () => void) => {
+      triggerEditorContentSizeChange = callback
+      return { dispose: vi.fn() }
+    },
   }
 
   runtime.useMonaco.mockReset().mockImplementation(() => runtime)
@@ -118,6 +127,14 @@ describe('code block scroll restoration after collapse', () => {
 
     await wrapper.get('button[aria-pressed="false"]').trigger('click')
     await wrapper.get('button[aria-pressed="true"]').trigger('click')
+    await flush()
+
+    reportedContentHeight = 500
+    triggerEditorContentSizeChange()
+    await wrapper.setProps({ monacoOptions: { MAX_HEIGHT: 500, fontSize: 13 } })
+    await wrapper.setProps({ monacoOptions: { MAX_HEIGHT: 500, fontSize: 14 } })
+    await wrapper.setProps({ monacoOptions: { MAX_HEIGHT: 500, fontSize: 15 } })
+    await flush()
     await flush()
 
     expect(host.clientHeight).toBe(500)
