@@ -210,6 +210,8 @@ const heightBeforeCollapse = ref<number | null>(null)
 const lastStableCollapsedDiffHeight = ref<number | null>(null)
 let collapsedDiffHandlesMouseWheel: boolean | null = null
 let resumeGuardFrames = 0
+// Visible height alone cannot reveal overflow after the container is clipped by its maximum height.
+let wasScrollableBeforeCollapse = false
 const registerVisibility = useViewportPriority()
 const viewportPriorityOptions = useViewportPriorityOptions()
 const offscreenHeavyNodeDeferral = useOffscreenHeavyNodeDeferral()
@@ -2482,6 +2484,7 @@ function applyCollapsedContainerHeight(
   options: {
     clearEstimatedFloor?: boolean
     allowBelowEstimatedFloor?: boolean
+    preserveScrollableOverflow?: boolean
   } = {},
 ) {
   const renderedStreamingDiffHeight = isDiff.value && props.loading !== false
@@ -2514,11 +2517,27 @@ function applyCollapsedContainerHeight(
     container.style.overflow = 'hidden'
   }
   else {
-    const shouldScroll = contentHeight > maxHeight + PIXEL_EPSILON
+    const shouldScroll = options.preserveScrollableOverflow === true
+      || contentHeight > maxHeight + PIXEL_EPSILON
     container.style.overflow = shouldScroll ? 'auto' : 'hidden'
   }
 
   return nextHeight
+}
+
+function hasScrollableOverflow(container: HTMLElement, visibleHeight = 0) {
+  const rectHeight = Math.ceil(container.getBoundingClientRect?.().height || 0)
+  const viewportHeight = Math.max(visibleHeight, container.clientHeight || 0, rectHeight)
+  return viewportHeight > 0
+    && container.scrollHeight > viewportHeight + PIXEL_EPSILON
+}
+
+function shouldRestoreScrollableOverflow(container: HTMLElement) {
+  return !isDiff.value
+    && (
+      wasScrollableBeforeCollapse
+      || hasScrollableOverflow(container, heightBeforeCollapse.value ?? 0)
+    )
 }
 
 function syncCollapsedDiffScrollHandling(container: HTMLElement) {
@@ -2728,6 +2747,7 @@ function updateCollapsedHeight(options: EditorHostHeightSyncOptions = {}) {
       if (heightBeforeCollapse.value != null) {
         const h = applyCollapsedContainerHeight(container, heightBeforeCollapse.value, max, {
           allowBelowEstimatedFloor: foldedDiffReadyForShrink,
+          preserveScrollableOverflow: shouldRestoreScrollableOverflow(container),
         })
         adjustScrollAfterHeightChange(container, oldHeight, h)
         return
@@ -2861,6 +2881,7 @@ function updateCollapsedHeight(options: EditorHostHeightSyncOptions = {}) {
     if (heightBeforeCollapse.value != null) {
       const h = applyCollapsedContainerHeight(container, heightBeforeCollapse.value, max, {
         allowBelowEstimatedFloor: foldedDiffReadyForShrink,
+        preserveScrollableOverflow: shouldRestoreScrollableOverflow(container),
       })
       adjustScrollAfterHeightChange(container, oldHeight, h)
       return
@@ -3526,8 +3547,15 @@ function toggleExpand() {
 function toggleHeaderCollapse() {
   isCollapsed.value = !isCollapsed.value
   if (isCollapsed.value) {
+    wasScrollableBeforeCollapse = false
     if (codeEditor.value) {
       const rectH = Math.ceil((codeEditor.value.getBoundingClientRect?.().height) || 0)
+      wasScrollableBeforeCollapse = !isDiff.value
+        && (
+          hasScrollableOverflow(codeEditor.value, rectH)
+          || codeEditor.value.style.overflow === 'auto'
+          || codeEditor.value.style.overflowY === 'auto'
+        )
       if (rectH > 0)
         heightBeforeCollapse.value = rectH
     }
