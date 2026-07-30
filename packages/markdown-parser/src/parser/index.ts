@@ -2514,6 +2514,18 @@ function mergeSplitTopLevelHtmlBlocks(nodes: ParsedNode[], final: boolean, sourc
 
     const currentContent = String(node.content ?? nodeRaw)
     const currentRaw = String(node.raw ?? currentContent)
+    const currentRawEnd = nodePos + currentRaw.length
+    if (
+      nodePos !== -1
+      && exact.end < currentRawEnd
+      && source.slice(nodePos, currentRawEnd) === currentRaw
+    ) {
+      sourceHtmlCursor = currentRawEnd
+      if (options?.includeSourceMap)
+        node.sourceMap = createSourceMapFromOffsets(source, nodePos, currentRawEnd, options)
+      continue
+    }
+
     const nextContent = buildHtmlBlockContent(exact.raw, tag, exact.closed)
     const desiredLoading = !final && !exact.closed
     const needsExpansion = currentContent !== nextContent || currentRaw !== exact.raw || Boolean(node.loading) !== desiredLoading
