@@ -164,7 +164,7 @@ function isCjkOpeningPunctuation(ch?: string, previous?: string) {
 function isCjkClosingPunctuation(ch?: string, next?: string) {
   return !!ch
     && !!next
-    && /^\p{Script=Han}$/u.test(next)
+    && /^[\p{L}\p{N}]$/u.test(next)
     && CJK_CLOSING_PUNCTUATION_RE.test(ch)
 }
 
