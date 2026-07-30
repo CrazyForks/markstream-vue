@@ -1484,6 +1484,7 @@ export function parseInlineTokens(
     // mirror logic previously in the switch-case for 'link_open'
     resetCurrentTextNode()
     // 直接使用 parseLinkToken 来解析链接及其子节点，这能正确处理包含 code_inline 等复杂内容的链接
+    const linkStartIndex = i
     const { node, nextIndex } = parseLinkToken(tokens, i, options)
     i = nextIndex
 
@@ -1544,6 +1545,13 @@ export function parseInlineTokens(
             node.loading = false
         }
       }
+    }
+
+    if (
+      /^file:\/\/\/[a-z]:\//i.test(node.href)
+      && recoverMarkdownImageFromTrailingBang(node as unknown as MarkdownToken, linkStartIndex - 1)
+    ) {
+      return
     }
 
     if (recoverMarkdownLinkFromTrailingText(node as unknown as MarkdownToken))
@@ -1665,12 +1673,12 @@ export function parseInlineTokens(
     return true
   }
 
-  function recoverMarkdownImageFromTrailingBang(token: MarkdownToken): boolean {
+  function recoverMarkdownImageFromTrailingBang(token: MarkdownToken, previousTokenIndex = i - 1): boolean {
     if (token.type !== 'link')
       return false
 
     const previous = result[result.length - 1] as TextNode | undefined
-    const previousToken = tokens[i - 1]
+    const previousToken = tokens[previousTokenIndex]
     if (!previous || previous.type !== 'text' || previousToken?.type !== 'text')
       return false
 

@@ -614,6 +614,29 @@ describe('inline parser fixes (link mid-states)', () => {
       expect(images[0].alt).toBe('劈叉少女')
       expect(links, `final: ${final}`).toHaveLength(0)
     }
+
+    for (let index = 2; index <= markdown.length; index++) {
+      const prefix = markdown.slice(0, index)
+      const nodes = parseMarkdownToStructure(prefix, md, { final: false })
+
+      expect(collectTarget(nodes as any[], 'image'), prefix).toHaveLength(1)
+      expect(collectLinks(nodes as any[]), prefix).toHaveLength(0)
+    }
+
+    const escapedNodes = parseMarkdownToStructure(`\\${markdown}`, md, { final: true })
+    expect(collectTarget(escapedNodes as any[], 'image')).toHaveLength(0)
+    expect(collectLinks(escapedNodes as any[])).toHaveLength(1)
+
+    const rejectingMd = getMarkdown('reject-windows-file-image', {
+      markdownItOptions: {
+        validateLink: () => false,
+      },
+    })
+    const rejectedNodes = parseMarkdownToStructure(markdown, rejectingMd, { final: true })
+    const rejectedImages = collectTarget(rejectedNodes as any[], 'image')
+    expect(rejectedImages).toHaveLength(1)
+    expect(rejectedImages[0]).toMatchObject({ src: '', loading: true })
+    expect(collectLinks(rejectedNodes as any[])).toHaveLength(0)
   })
 
   it('does not turn escaped exclamation plus link into an image mid-state', () => {
