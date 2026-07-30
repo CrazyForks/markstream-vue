@@ -138,14 +138,17 @@ function applyInlineUrlValidation(md: MarkdownItInstance) {
     return
 
   const markdownIt = md as MarkdownItInstance & { validateLink: (url: string) => boolean }
-  const imageValidateLink = markdownIt.validateLink
+  const markdownItValidateLink = markdownIt.validateLink
+  const imageValidateLink = (url: string) => markdownItValidateLink(url)
+    || (url.trim().toLowerCase().startsWith('file:///')
+      && !isUnsafeHtmlUrl(url, { tagName: 'a', attrName: 'href' }))
   const markstreamMd = md as MarkdownItInstance & { __markstreamOriginalValidateLink?: (url: string) => boolean }
-  markstreamMd.__markstreamOriginalValidateLink = imageValidateLink
+  markstreamMd.__markstreamOriginalValidateLink = markdownItValidateLink
 
   ruler.at('link', (...args: any[]) => {
     const state = args[0] as InlineStateLike
     const activeMd = state.md
-    const validateLink = activeMd?.validateLink === imageValidateLink
+    const validateLink = activeMd?.validateLink === markdownItValidateLink
       ? activeMd.options?.validateLink
       : activeMd?.validateLink
     if (!activeMd || typeof validateLink !== 'function')

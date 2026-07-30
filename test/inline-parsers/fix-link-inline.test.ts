@@ -602,6 +602,20 @@ describe('inline parser fixes (link mid-states)', () => {
     expect(finalLinks).toHaveLength(0)
   })
 
+  it('parses a Windows file URL image as an image instead of exclamation text and a link', () => {
+    const markdown = '![劈叉少女](file:///C:/Users/18616/dim-agent/artifacts/image-ms7gxc2x-391c1dc2.png)'
+    for (const final of [false, true]) {
+      const nodes = parseMarkdownToStructure(markdown, md, { final })
+      const images = collectTarget(nodes as any[], 'image')
+      const links = collectLinks(nodes as any[])
+
+      expect(images, `final: ${final}`).toHaveLength(1)
+      expect(images[0].src).toBe('file:///C:/Users/18616/dim-agent/artifacts/image-ms7gxc2x-391c1dc2.png')
+      expect(images[0].alt).toBe('劈叉少女')
+      expect(links, `final: ${final}`).toHaveLength(0)
+    }
+  })
+
   it('does not turn escaped exclamation plus link into an image mid-state', () => {
     const nodes = parseMarkdownToStructure('\\![Picture](https://imzbf.github.io/md-editor-rt/imgs/mark_emoji.gif', md, { final: false })
     const images = collectTarget(nodes as any[], 'image')
