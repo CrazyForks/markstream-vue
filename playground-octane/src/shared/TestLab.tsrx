@@ -19,6 +19,7 @@ type TextareaClipboardEvent = ClipboardEvent & {
 
 const CURRENT_FRAMEWORK: FrameworkId = 'octane'
 const DARK_MODE_KEY = 'vmr-test-dark'
+const APP_DARK_MODE_KEY = 'vueuse-color-scheme'
 
 const frameworkCards = [
   ...TEST_LAB_FRAMEWORKS,
@@ -136,6 +137,20 @@ export function TestLab({ frameworkLabel, onGoHome }: TestLabProps) {
     if (typeof window === 'undefined')
       return
     window.localStorage.setItem(DARK_MODE_KEY, isDark ? 'dark' : 'light')
+  }, [isDark])
+
+  useEffect(() => {
+    if (typeof document === 'undefined')
+      return
+
+    document.documentElement.classList.toggle('dark', isDark)
+    return () => {
+      const appTheme = window.localStorage.getItem(APP_DARK_MODE_KEY)
+      const appIsDark = appTheme
+        ? appTheme === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.classList.toggle('dark', appIsDark)
+    }
   }, [isDark])
 
   useEffect(() => {

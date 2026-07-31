@@ -127,6 +127,16 @@ async function main() {
         errors.push(message.text())
     })
 
+    await page.addInitScript(() => {
+      localStorage.setItem('vueuse-color-scheme', 'light')
+      localStorage.setItem('vmr-test-dark', 'light')
+      localStorage.setItem('vmr-settings-stream-delay-min', '8')
+      localStorage.setItem('vmr-settings-stream-delay-max', '8')
+      localStorage.setItem('vmr-settings-stream-chunk-size-min', '24')
+      localStorage.setItem('vmr-settings-stream-chunk-size-max', '24')
+      localStorage.setItem('vmr-settings-stream-burstiness', '0')
+    })
+
     await page.goto(`http://${host}:${port}/`, { waitUntil: 'networkidle' })
     await page.getByRole('heading', { name: 'markstream-octane' }).waitFor()
     const homeRenderer = page.locator('.chatbot-renderer-shell > .markstream-octane')
@@ -135,6 +145,37 @@ async function main() {
       const renderer = document.querySelector('.chatbot-renderer-shell > .markstream-octane')
       return (renderer?.textContent?.length ?? 0) > 20
     })
+
+    const logo = homeRenderer.locator('img[alt="Markstream logo"]')
+    await logo.waitFor({ timeout: 30000 })
+    assert(
+      await logo.evaluate(element => element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0),
+      'The playground logo asset did not load',
+    )
+
+    const emoji = homeRenderer.locator('.emoji-node')
+    await emoji.waitFor({ timeout: 30000 })
+    assert(await emoji.textContent() === '😄', 'The :smile: shortcode was not rendered as an emoji')
+
+    const javascriptBlock = homeRenderer.locator('.code-block-container').filter({ hasText: 'JavaScript' }).first()
+    await javascriptBlock.locator('.monaco-editor .view-line').first().waitFor({ timeout: 30000 })
+    const javascriptState = await javascriptBlock.evaluate((element) => {
+      const tokenColors = new Set(
+        Array.from(element.querySelectorAll('.view-line span[class*="mtk"]'))
+          .map(token => getComputedStyle(token).color),
+      )
+      const fallback = element.querySelector('.code-editor-fallback-surface')
+      return {
+        hasCode: element.textContent?.includes('mainWindow') && element.textContent.includes('loadURL'),
+        hasMonaco: Boolean(element.querySelector('.monaco-editor')),
+        highlightedTokenColorCount: tokenColors.size,
+        fallbackHidden: !fallback || getComputedStyle(fallback).display === 'none',
+      }
+    })
+    assert(javascriptState.hasCode, 'The JavaScript code block rendered without its source code')
+    assert(javascriptState.hasMonaco, 'The JavaScript code block did not retain its Monaco editor')
+    assert(javascriptState.highlightedTokenColorCount > 2, 'The JavaScript code block has no syntax highlighting')
+    assert(javascriptState.fallbackHidden, 'The code fallback remained visible after Monaco became ready')
 
     const settingsPanel = page.locator('.settings-panel')
     await settingsPanel.getByText('Code Theme', { exact: true }).waitFor()
@@ -156,6 +197,42 @@ async function main() {
     await testRenderer.waitFor()
     await testRenderer.locator('.katex').first().waitFor({ timeout: 20000 })
     await testRenderer.locator('.mermaid-block ._mermaid svg').first().waitFor({ timeout: 20000 })
+
+    const testLab = page.locator('.test-lab')
+    const initialTestTheme = await testLab.evaluate(element => ({
+      htmlDark: document.documentElement.classList.contains('dark'),
+      labDark: element.classList.contains('test-lab--dark'),
+    }))
+    assert(initialTestTheme.htmlDark === initialTestTheme.labDark, 'The Test Lab theme disagrees with the document theme')
+
+    await page.getByRole('button', { name: /结构压力/ }).click()
+    const inlineCode = testRenderer.locator('.table-node code.inline-code').first()
+    await inlineCode.waitFor()
+    const inlineCodeContrast = await inlineCode.evaluate((element) => {
+      const parseColor = (value) => {
+        const channels = value.match(/[\d.]+/g)?.slice(0, 3).map(Number)
+        return channels?.length === 3 ? channels : undefined
+      }
+      const luminance = (channels) => {
+        const linear = channels.map((channel) => {
+          const normalized = channel / 255
+          return normalized <= 0.03928
+            ? normalized / 12.92
+            : ((normalized + 0.055) / 1.055) ** 2.4
+        })
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+      }
+      const style = getComputedStyle(element)
+      const foreground = parseColor(style.color)
+      const background = parseColor(style.backgroundColor)
+      if (!foreground || !background)
+        return 0
+      const foregroundLuminance = luminance(foreground)
+      const backgroundLuminance = luminance(background)
+      return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+        / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05)
+    })
+    assert(inlineCodeContrast >= 4.5, `Inline code contrast is too low (${inlineCodeContrast.toFixed(2)}:1)`)
 
     await page.getByRole('button', { name: /Thinking 嵌套重节点/ }).click()
     await testRenderer.locator('.thinking-node').waitFor()
@@ -182,10 +259,14 @@ async function main() {
     assert(await settingsDialog.locator('input[type="number"]').count() === 5, 'The Test Lab numeric controls are incomplete')
     await settingsDialog.getByRole('button', { name: '关闭' }).click()
 
-    const testLab = page.locator('.test-lab')
     const testLabInitiallyDark = await testLab.evaluate(element => element.classList.contains('test-lab--dark'))
     await page.getByRole('button', { name: testLabInitiallyDark ? '切换浅色' : '切换暗色' }).click()
     await page.waitForFunction(expected => document.querySelector('.test-lab')?.classList.contains('test-lab--dark') === expected, !testLabInitiallyDark)
+    const toggledTestTheme = await testLab.evaluate(element => ({
+      htmlDark: document.documentElement.classList.contains('dark'),
+      labDark: element.classList.contains('test-lab--dark'),
+    }))
+    assert(toggledTestTheme.htmlDark === toggledTestTheme.labDark, 'The document theme did not follow the Test Lab toggle')
 
     await page.getByRole('button', { name: '返回主 demo' }).click()
     await page.waitForURL(url => url.pathname === '/')

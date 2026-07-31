@@ -1,8 +1,10 @@
 import type { StreamPresetId } from './shared/streamPresets'
 import type { StreamSliceMode, StreamTransportMode } from './shared/useStreamSimulator'
+import type { MarkdownIt } from 'stream-markdown-parser'
 import { NodeRenderer, setCustomComponents, setKaTeXWorker, setMermaidWorker } from 'markstream-octane'
 import KatexWorker from 'markstream-octane/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'markstream-octane/workers/mermaidParser.worker?worker&inline'
+import { full as markdownItEmoji } from 'markdown-it-emoji'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import { Icon } from './components/Icon.tsrx'
 import { ThinkingNode } from './components/ThinkingNode.tsrx'
@@ -18,6 +20,10 @@ setMermaidWorker(new MermaidWorker())
 setCustomComponents(PLAYGROUND_CUSTOM_ID, {
   thinking: ThinkingNode,
 })
+
+function configureMarkdownIt(md: MarkdownIt) {
+  return md.use(markdownItEmoji)
+}
 
 const MemoizedNodeRenderer = memo(NodeRenderer)
 
@@ -269,10 +275,12 @@ export default function App() {
   useEffect(() => {
     if (typeof document === 'undefined')
       return
+    if (isTestPage)
+      return
     document.documentElement.classList.toggle('dark', isDark)
     if (typeof window !== 'undefined')
       window.localStorage.setItem(DARK_MODE_KEY, isDark ? 'dark' : 'light')
-  }, [isDark])
+  }, [isDark, isTestPage])
 
   useEffect(() => {
     if (streamChunkDelayMin !== normalizedChunkDelayRange.min) {
@@ -724,6 +732,7 @@ export default function App() {
                 isDark={isDark}
                 customId={PLAYGROUND_CUSTOM_ID}
                 customHtmlTags={PLAYGROUND_CUSTOM_HTML_TAGS}
+                customMarkdownIt={configureMarkdownIt}
                 deferNodesUntilVisible={false}
                 maxLiveNodes={2000}
                 liveNodeBuffer={200}

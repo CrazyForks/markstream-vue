@@ -1,6 +1,6 @@
 import type { VisibilityHandle } from '../../context/viewportPriority.tsrx'
 import type { CodeBlockNodeProps } from '../../types/component-props'
-import type { OctaneStyle } from '../../types/octane'
+import type { OctaneRefObject, OctaneStyle } from '../../types/octane'
 import * as Octane from 'octane'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'octane'
 import { useViewportPriority } from '../../context/viewportPriority.tsrx'
@@ -72,6 +72,47 @@ const defaultDiffHideUnchangedRegions = Object.freeze({
 })
 const defaultPreFallbackFontSize = 12
 const defaultPreFallbackLineHeight = 18
+
+type MonacoEditorLayerProps = {
+  editorHostRef: OctaneRefObject<HTMLDivElement | null>
+  editorReady: boolean
+  node: CodeBlockNodeProps['node']
+  preFallbackDiffInline: boolean
+  preFallbackStyle: OctaneStyle & Record<string, string | number>
+  stream: boolean
+}
+
+function MonacoEditorLayer({
+  editorHostRef,
+  editorReady,
+  node,
+  preFallbackDiffInline,
+  preFallbackStyle,
+  stream,
+}: MonacoEditorLayerProps) {
+  return (
+    <div className="code-editor-layer">
+      <div
+        ref={editorHostRef}
+        className={`code-editor-container${stream ? '' : ' code-height-placeholder'}`}
+        style={{ visibility: editorReady ? 'visible' : 'hidden' }}
+        aria-hidden={!editorReady}
+      />
+      <div
+        className="code-editor-fallback-surface"
+        style={{ display: editorReady ? 'none' : 'block' }}
+      >
+        <PreCodeNode
+          className="code-fallback-plain m-0"
+          diffInline={preFallbackDiffInline}
+          node={node}
+          showLineNumbers={Boolean(node.diff)}
+          style={preFallbackStyle}
+        />
+      </div>
+    </div>
+  )
+}
 
 function readPositiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
@@ -1499,27 +1540,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
           useFallback
             ? <PreCodeNode node={node as any} />
             : (
-                <div className="code-editor-layer">
-                  <div
-                    ref={editorHostRef}
-                    className={`code-editor-container${stream ? '' : ' code-height-placeholder'}`}
-                    style={{ visibility: editorReady ? 'visible' : 'hidden' }}
-                    aria-hidden={!editorReady}
-                  />
-                  {!editorReady && (
-                    <div
-                      className="code-editor-fallback-surface"
-                    >
-                      <PreCodeNode
-                        className="code-fallback-plain m-0"
-                        diffInline={preFallbackDiffInline}
-                        node={node as any}
-                        showLineNumbers={Boolean(node.diff)}
-                        style={preFallbackStyle}
-                      />
-                    </div>
-                  )}
-                </div>
+                <MonacoEditorLayer
+                  editorHostRef={editorHostRef}
+                  editorReady={editorReady}
+                  node={node}
+                  preFallbackDiffInline={preFallbackDiffInline}
+                  preFallbackStyle={preFallbackStyle}
+                  stream={stream}
+                />
               )
         )}
 
