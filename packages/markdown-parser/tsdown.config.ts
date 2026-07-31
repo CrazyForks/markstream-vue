@@ -10,7 +10,6 @@ const markdownItDeps = [
   'linkify-it',
   'mdurl',
   'punycode.js',
-  'uc.micro',
 ]
 
 export default defineConfig({

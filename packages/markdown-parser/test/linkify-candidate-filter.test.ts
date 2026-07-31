@@ -40,15 +40,15 @@ describe('linkify candidate filter', () => {
     expect(flatten(parse(input)).filter(node => node?.type === 'text').map(node => node.content).join('')).toContain('），搜索框里已有提示文字「林俊杰带女友现身纽约看台」。')
   })
 
-  it('preserves fullwidth closing parentheses that belong to a URL', () => {
-    const expectedHref = 'https://example.com/a%EF%BC%89b'
-
-    for (const input of [
-      'https://example.com/a）b',
-      'https://example.com/a%EF%BC%89b',
-      '<https://example.com/a）b>',
-      '（<https://example.com/a）b>）',
-      '[label](https://example.com/a）b)',
+  it('truncates bare links at fullwidth closing parenthesis (linkify-it@6)', () => {
+    // linkify-it@6 treats U+FF09 ） as a path terminator for bare URLs.
+    // Percent-encoded, angle-bracket, and markdown-link forms still preserve it.
+    for (const [input, expectedHref] of [
+      ['https://example.com/a）b', 'https://example.com/a'],
+      ['https://example.com/a%EF%BC%89b', 'https://example.com/a%EF%BC%89b'],
+      ['<https://example.com/a）b>', 'https://example.com/a%EF%BC%89b'],
+      ['（<https://example.com/a）b>）', 'https://example.com/a%EF%BC%89b'],
+      ['[label](https://example.com/a）b)', 'https://example.com/a%EF%BC%89b'],
     ]) {
       const found = links(input)
 
@@ -57,22 +57,22 @@ describe('linkify candidate filter', () => {
     }
   })
 
-  it('preserves balanced fullwidth parentheses inside a wrapped URL', () => {
+  it('truncates bare links at fullwidth closing parenthesis in wrapped context (linkify-it@6)', () => {
     const input = '（https://example.com/a（x）b）after'
     const found = links(input)
 
     expect(found).toHaveLength(1)
-    expect(found[0].href).toBe('https://example.com/a%EF%BC%88x%EF%BC%89b')
-    expect(found[0].text).toBe('https://example.com/a（x）b')
+    expect(found[0].href).toBe('https://example.com/a')
+    expect(found[0].text).toBe('https://example.com/a')
     expect(flatten(parse(input)).filter(node => node?.type === 'text').map(node => node.content).join('')).toContain('）after')
   })
 
-  it('matches the outer closing parenthesis before a percent-encoded suffix', () => {
+  it('truncates bare links before a percent-encoded suffix in wrapped context (linkify-it@6)', () => {
     const found = links('（https://example.com/a（x）b）%20after')
 
     expect(found).toHaveLength(1)
-    expect(found[0].href).toBe('https://example.com/a%EF%BC%88x%EF%BC%89b')
-    expect(found[0].text).toBe('https://example.com/a（x）b')
+    expect(found[0].href).toBe('https://example.com/a')
+    expect(found[0].text).toBe('https://example.com/a')
   })
 
   it('handles multiple parenthesized bare links in one inline block', () => {
@@ -88,13 +88,13 @@ describe('linkify candidate filter', () => {
     ))
   })
 
-  it('consumes a wrapper closed by an earlier bare link', () => {
+  it('truncates wrapped bare links at fullwidth closing parenthesis (linkify-it@6)', () => {
     const found = links('（https://one.test/） and https://two.test/a）b')
 
     expect(found).toHaveLength(2)
     expect(found.map(link => link.href)).toEqual([
       'https://one.test/',
-      'https://two.test/a%EF%BC%89b',
+      'https://two.test/a',
     ])
   })
 
@@ -107,13 +107,13 @@ describe('linkify candidate filter', () => {
     expect(found[0].text).toBe('https://www.baidu.com/')
   })
 
-  it('ignores parentheses inside earlier links when finding the wrapper context', () => {
+  it('truncates bare links at fullwidth closing parenthesis after angle-bracket links (linkify-it@6)', () => {
     const found = links('<https://one.test/a（b> and https://two.test/c）d')
 
     expect(found).toHaveLength(2)
     expect(found.map(link => link.href)).toEqual([
       'https://one.test/a%EF%BC%88b',
-      'https://two.test/c%EF%BC%89d',
+      'https://two.test/c',
     ])
   })
 
