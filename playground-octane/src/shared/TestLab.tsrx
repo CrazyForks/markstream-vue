@@ -3,7 +3,7 @@ import type { TestPageViewMode } from '../../../playground-shared/testPageState'
 import type { StreamPresetId } from './streamPresets'
 import type { StreamSliceMode, StreamTransportMode } from './useStreamSimulator'
 import { NodeRenderer } from 'markstream-octane'
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'octane'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'octane'
 import { resolveMarkdownTextareaPaste } from '../../../playground-shared/markdownPaste'
 import { TEST_LAB_FRAMEWORKS, TEST_LAB_SAMPLES } from '../../../playground-shared/testLabFixtures'
 import { buildTestPageHref, decodeMarkdownHash, resolveFrameworkTestHref, resolveTestPageViewMode } from '../../../playground-shared/testPageState'
@@ -139,7 +139,7 @@ export function TestLab({ frameworkLabel, onGoHome }: TestLabProps) {
     window.localStorage.setItem(DARK_MODE_KEY, isDark ? 'dark' : 'light')
   }, [isDark])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof document === 'undefined')
       return
 
