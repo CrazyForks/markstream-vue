@@ -1,8 +1,10 @@
 import { createRoot } from 'octane'
-import { App } from './App.tsrx'
+import App from './App.tsrx'
 import 'katex/dist/katex.min.css'
 import 'markstream-octane/index.css'
-import './styles.css'
+import 'monaco-editor/min/vs/editor/editor.main.css'
+import './shared/test-lab.css'
+import './index.css'
 
 const root = document.getElementById('root')
 if (!root)

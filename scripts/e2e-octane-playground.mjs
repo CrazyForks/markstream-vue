@@ -102,6 +102,11 @@ function stopServer(child) {
   catch {}
 }
 
+function assert(condition, message) {
+  if (!condition)
+    throw new Error(message)
+}
+
 async function main() {
   if (!existsSync(playgroundDist))
     throw new Error('Octane playground is not built. Run `pnpm play:octane:build` first.')
@@ -123,38 +128,73 @@ async function main() {
     })
 
     await page.goto(`http://${host}:${port}/`, { waitUntil: 'networkidle' })
-    await page.getByRole('heading', { name: 'Ready for tokens' }).waitFor()
+    await page.getByRole('heading', { name: 'markstream-octane' }).waitFor()
+    const homeRenderer = page.locator('.chatbot-renderer-shell > .markstream-octane')
+    await homeRenderer.waitFor()
+    await page.waitForFunction(() => {
+      const renderer = document.querySelector('.chatbot-renderer-shell > .markstream-octane')
+      return (renderer?.textContent?.length ?? 0) > 20
+    })
 
-    await page.getByRole('button', { name: 'Start stream' }).click()
-    await page.getByTestId('stream-status').filter({ hasText: 'Receiving tokens' }).waitFor()
-    await page.locator('.markstream-octane h1').waitFor()
+    const settingsPanel = page.locator('.settings-panel')
+    await settingsPanel.getByText('Code Theme', { exact: true }).waitFor()
+    assert(await settingsPanel.locator('select').count() === 4, 'The full React 19 settings panel was not ported')
+    assert(await settingsPanel.locator('input[type="range"]').count() === 5, 'The full stream controls were not ported')
 
-    await page.getByRole('button', { name: 'Pause' }).click()
-    await page.getByTestId('stream-status').filter({ hasText: 'Paused' }).waitFor()
-    const renderer = page.locator('.renderer-shell > .markstream-octane')
-    const pausedText = await renderer.textContent()
-    await page.waitForTimeout(150)
-    if (await renderer.textContent() !== pausedText)
-      throw new Error('Markdown output continued changing after the stream was paused')
+    const initiallyDark = await page.locator('html').evaluate(element => element.classList.contains('dark'))
+    const homeThemeToggle = settingsPanel.locator('label').filter({ hasText: 'Dark Mode' }).locator('..').getByRole('button')
+    await homeThemeToggle.scrollIntoViewIfNeeded()
+    await homeThemeToggle.click()
+    await page.waitForFunction(expected => document.documentElement.classList.contains('dark') === expected, !initiallyDark)
 
-    await page.getByRole('button', { name: 'Finish now' }).click()
-    await page.getByTestId('stream-status').filter({ hasText: 'Complete' }).waitFor()
-    await page.locator('.markstream-octane strong').filter({ hasText: 'append-only token stream' }).waitFor()
-    await page.locator('.markstream-octane table').waitFor()
-    await page.locator('.markstream-octane pre').first().waitFor()
-    await page.locator('.markstream-octane .katex').first().waitFor({ timeout: 15000 })
+    await page.getByRole('button', { name: 'Test' }).click()
+    await page.waitForURL(url => url.pathname === '/test')
+    await page.getByRole('heading', { name: 'markstream-octane /test' }).waitFor()
+    await page.getByText('Octane Regression Lab', { exact: true }).waitFor()
 
-    const darkCanvas = await page.locator('main.playground--dark').count()
-    if (darkCanvas !== 1)
-      throw new Error('Octane playground did not start in dark mode')
-    await page.getByRole('button', { name: 'Use light canvas' }).click()
-    if (await page.locator('main.playground--dark').count())
-      throw new Error('Octane playground theme state did not update')
+    const testRenderer = page.locator('.preview-surface .markstream-octane')
+    await testRenderer.waitFor()
+    await testRenderer.locator('.katex').first().waitFor({ timeout: 20000 })
+    await testRenderer.locator('.mermaid-block ._mermaid svg').first().waitFor({ timeout: 20000 })
+
+    await page.getByRole('button', { name: /Thinking 嵌套重节点/ }).click()
+    await testRenderer.locator('.thinking-node').waitFor()
+
+    const editor = page.locator('textarea.editor-textarea')
+    const liveMarkdown = `# Octane live editor\n\n**native runtime**\n\n${'streaming parity '.repeat(80)}`
+    await editor.fill(liveMarkdown)
+    await testRenderer.getByRole('heading', { name: 'Octane live editor' }).waitFor()
+    await testRenderer.locator('strong').filter({ hasText: 'native runtime' }).waitFor()
+
+    await page.getByRole('button', { name: '开始流式渲染' }).click()
+    await page.getByRole('button', { name: '暂停流式渲染' }).click()
+    await page.getByText('Paused', { exact: true }).first().waitFor()
+    const pausedText = await testRenderer.textContent()
+    await page.waitForTimeout(200)
+    assert(await testRenderer.textContent() === pausedText, 'Markdown output continued changing after the stream was paused')
+    await page.getByRole('button', { name: '继续流式渲染' }).click()
+    await page.getByRole('button', { name: '停止流式渲染' }).click()
+
+    await page.getByRole('button', { name: '更多设置' }).click()
+    const settingsDialog = page.locator('dialog.settings-dialog')
+    await settingsDialog.waitFor()
+    assert(await settingsDialog.locator('select').count() === 3, 'The Test Lab stream settings are incomplete')
+    assert(await settingsDialog.locator('input[type="number"]').count() === 5, 'The Test Lab numeric controls are incomplete')
+    await settingsDialog.getByRole('button', { name: '关闭' }).click()
+
+    const testLab = page.locator('.test-lab')
+    const testLabInitiallyDark = await testLab.evaluate(element => element.classList.contains('test-lab--dark'))
+    await page.getByRole('button', { name: testLabInitiallyDark ? '切换浅色' : '切换暗色' }).click()
+    await page.waitForFunction(expected => document.querySelector('.test-lab')?.classList.contains('test-lab--dark') === expected, !testLabInitiallyDark)
+
+    await page.getByRole('button', { name: '返回主 demo' }).click()
+    await page.waitForURL(url => url.pathname === '/')
+    await page.getByRole('heading', { name: 'markstream-octane' }).waitFor()
 
     if (errors.length)
       throw new Error(`Browser errors:\n${errors.join('\n')}`)
 
-    console.log('[e2e-octane-playground] Production playground smoke passed')
+    console.log('[e2e-octane-playground] React 19 parity playground smoke passed')
   }
   catch (error) {
     const logs = server.getLogs()
