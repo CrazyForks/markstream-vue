@@ -34,7 +34,7 @@ const HTML_LINK_OPEN_RE = /^<a[>\s]/i
 const HTML_LINK_CLOSE_RE = /^<\/a\s*>/i
 
 interface LinkifyLike {
-  pretest: (text: string) => boolean
+  test: (text: string) => boolean
 }
 
 interface CoreRuleRecord {
@@ -72,7 +72,7 @@ function inlineTokenMayNeedLinkify(token: Token, linkify: LinkifyLike) {
 
   const children = token.children
   if (!Array.isArray(children) || children.length === 0)
-    return linkify.pretest(String(token.content ?? ''))
+    return linkify.test(String(token.content ?? ''))
 
   let htmlLinkLevel = 0
   for (let index = children.length - 1; index >= 0; index--) {
@@ -96,7 +96,7 @@ function inlineTokenMayNeedLinkify(token: Token, linkify: LinkifyLike) {
     if (htmlLinkLevel > 0)
       continue
 
-    if (currentToken?.type === 'text' && linkify.pretest(String(currentToken.content ?? '')))
+    if (currentToken?.type === 'text' && linkify.test(String(currentToken.content ?? '')))
       return true
   }
 
