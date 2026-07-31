@@ -603,15 +603,15 @@ describe('inline parser fixes (link mid-states)', () => {
   })
 
   it('parses a Windows file URL image as an image instead of exclamation text and a link', () => {
-    const markdown = '![劈叉少女](file:///C:/Users/18616/dim-agent/artifacts/image-ms7gxc2x-391c1dc2.png)'
+    const markdown = '![示例图片](file:///C:/Users/demo/Pictures/sample-image.png)'
     for (const final of [false, true]) {
       const nodes = parseMarkdownToStructure(markdown, md, { final })
       const images = collectTarget(nodes as any[], 'image')
       const links = collectLinks(nodes as any[])
 
       expect(images, `final: ${final}`).toHaveLength(1)
-      expect(images[0].src).toBe('file:///C:/Users/18616/dim-agent/artifacts/image-ms7gxc2x-391c1dc2.png')
-      expect(images[0].alt).toBe('劈叉少女')
+      expect(images[0].src).toBe('file:///C:/Users/demo/Pictures/sample-image.png')
+      expect(images[0].alt).toBe('示例图片')
       expect(links, `final: ${final}`).toHaveLength(0)
     }
 
