@@ -287,7 +287,11 @@ async function main() {
 
     const testLabInitiallyDark = await testLab.evaluate(element => element.classList.contains('test-lab--dark'))
     await page.getByRole('button', { name: testLabInitiallyDark ? '切换浅色' : '切换暗色' }).click()
-    await page.waitForFunction(expected => document.querySelector('.test-lab')?.classList.contains('test-lab--dark') === expected, !testLabInitiallyDark)
+    await page.waitForFunction((expected) => {
+      const lab = document.querySelector('.test-lab')
+      return Boolean(lab?.classList.contains('test-lab--dark')) === expected
+        && document.documentElement.classList.contains('dark') === expected
+    }, !testLabInitiallyDark)
     const toggledTestTheme = await testLab.evaluate(element => ({
       htmlDark: document.documentElement.classList.contains('dark'),
       labDark: element.classList.contains('test-lab--dark'),
