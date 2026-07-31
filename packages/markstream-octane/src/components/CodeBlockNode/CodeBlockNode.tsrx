@@ -343,6 +343,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
   const editorHeightSyncDisposablesRef = useRef<any[]>([])
   const diffDomHeightObserverRef = useRef<MutationObserver | null>(null)
   const expandedRef = useRef(false)
+  const failedMonacoLanguageRef = useRef<string | undefined>(undefined)
 
   const [useFallback, setUseFallback] = useState(false)
   const [viewportReady, setViewportReady] = useState(() => typeof window === 'undefined')
@@ -898,7 +899,13 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     }
   }, [node.diff, resolvedSurfaceIsDark])
 
-  const shouldDelayEditor = stream === false && loading
+  const hasStreamingCode = useMemo(() => {
+    return node.code.length > 0
+      || (node.originalCode?.length ?? 0) > 0
+      || (node.updatedCode?.length ?? 0) > 0
+  }, [node.code, node.originalCode, node.updatedCode])
+  const shouldDelayEditor = (stream === false && loading)
+    || (stream !== false && loading && !hasStreamingCode)
 
   // Vue parity: keep theme in sync without recreating Monaco.
   useEffect(() => {
@@ -1035,8 +1042,10 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
         setEditorReady(true)
       }
       catch {
-        if (editorLifecycleIdRef.current === creationId)
+        if (editorLifecycleIdRef.current === creationId) {
+          failedMonacoLanguageRef.current = monacoLanguage
           setUseFallback(true)
+        }
       }
     })()
 
@@ -1092,8 +1101,15 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
   ])
 
   useEffect(() => {
-    if (useFallback)
+    if (useFallback) {
+      const failedLanguage = failedMonacoLanguageRef.current
+      if (failedLanguage === undefined || failedLanguage === monacoLanguage)
+        return
+      failedMonacoLanguageRef.current = undefined
+      resetEditorInstance()
+      setUseFallback(false)
       return
+    }
     if (!monacoReady)
       return
     if (!viewportReady)
@@ -1103,7 +1119,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       return
     }
     void ensureEditorCreation()
-  }, [collapsed, ensureEditorCreation, monacoReady, resetEditorInstance, shouldDelayEditor, useFallback, viewportReady])
+  }, [collapsed, ensureEditorCreation, monacoLanguage, monacoReady, resetEditorInstance, shouldDelayEditor, useFallback, viewportReady])
 
   useEffect(() => {
     if (useFallback)
@@ -1276,18 +1292,6 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     if (canonicalLanguage === 'html')
       setInlinePreviewOpen(v => !v)
   }, [canonicalLanguage, isPreviewable, node, props, t])
-
-  if (useFallback) {
-    return (
-      <PreCodeNode
-        className="code-fallback-plain m-0"
-        diffInline={preFallbackDiffInline}
-        node={node as any}
-        showLineNumbers={Boolean(node.diff)}
-        style={preFallbackStyle}
-      />
-    )
-  }
 
   return (
     <div
@@ -1538,7 +1542,15 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       <div className={`code-block-body${collapsed ? ' code-block-body--collapsed' : ''}${expanded ? ' code-block-body--expanded' : ''}`}>
         {!collapsed && (stream ? true : !loading) && (
           useFallback
-            ? <PreCodeNode node={node as any} />
+            ? (
+                <PreCodeNode
+                  className="code-fallback-plain m-0"
+                  diffInline={preFallbackDiffInline}
+                  node={node}
+                  showLineNumbers={Boolean(node.diff)}
+                  style={preFallbackStyle}
+                />
+              )
             : (
                 <MonacoEditorLayer
                   editorHostRef={editorHostRef}

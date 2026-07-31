@@ -132,8 +132,8 @@ async function main() {
       localStorage.setItem('vmr-test-dark', 'light')
       localStorage.setItem('vmr-settings-stream-delay-min', '8')
       localStorage.setItem('vmr-settings-stream-delay-max', '8')
-      localStorage.setItem('vmr-settings-stream-chunk-size-min', '24')
-      localStorage.setItem('vmr-settings-stream-chunk-size-max', '24')
+      localStorage.setItem('vmr-settings-stream-chunk-size-min', '7')
+      localStorage.setItem('vmr-settings-stream-chunk-size-max', '7')
       localStorage.setItem('vmr-settings-stream-burstiness', '0')
     })
 
@@ -157,7 +157,33 @@ async function main() {
     await emoji.waitFor({ timeout: 30000 })
     assert(await emoji.textContent() === '😄', 'The :smile: shortcode was not rendered as an emoji')
 
-    const javascriptBlock = homeRenderer.locator('.code-block-container').filter({ hasText: 'JavaScript' }).first()
+    const expectedCodeBlocks = [
+      { language: 'Shell', source: 'npm create vue@latest electron-vue-chat' },
+      { language: 'JavaScript', source: 'const { app, BrowserWindow }' },
+      { language: 'JSON', source: '"packageManager": "pnpm@10.16.1"' },
+      { language: 'Python', source: 'from fastapi import FastAPI' },
+      { language: 'C++', source: '#include <bits/stdc++.h>' },
+      { language: 'Vue', source: '<router-view />' },
+      { language: 'JavaScript', source: 'createRouter, createWebHistory' },
+      { language: 'JavaScript', source: 'createApp(App).use(router)' },
+    ]
+
+    for (const expected of expectedCodeBlocks) {
+      const slot = homeRenderer.locator('[data-node-type="code_block"]').filter({ hasText: expected.source }).first()
+      const shell = slot.locator('.code-block-container')
+      await shell.waitFor({ timeout: 30000 })
+      await shell.locator('.monaco-editor').first().waitFor({ state: 'attached', timeout: 30000 })
+      const state = await slot.evaluate((element, source) => ({
+        hasBareFallback: Boolean(element.querySelector(':scope > .node-content > pre')),
+        hasMonaco: Boolean(element.querySelector('.monaco-editor')),
+        hasSource: Array.from(element.querySelectorAll('pre code')).some(code => code.textContent?.includes(source)),
+      }), expected.source)
+      assert(!state.hasBareFallback, `${expected.language} code block permanently degraded to a bare fallback`)
+      assert(state.hasMonaco, `${expected.language} code block did not initialize Monaco`)
+      assert(state.hasSource, `${expected.language} code block lost its streamed source`)
+    }
+
+    const javascriptBlock = homeRenderer.locator('.code-block-container').filter({ hasText: 'const { app, BrowserWindow }' }).first()
     await javascriptBlock.locator('.monaco-editor .view-line').first().waitFor({ timeout: 30000 })
     const javascriptState = await javascriptBlock.evaluate((element) => {
       const tokenColors = new Set(
