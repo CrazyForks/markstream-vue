@@ -165,6 +165,9 @@ async function main() {
     resolvePackage('packages/markstream-react/package.json', [
       'packages/markstream-react',
     ]),
+    resolvePackage('packages/markstream-octane/package.json', [
+      'packages/markstream-octane',
+    ]),
     resolvePackage('packages/markdown-parser/package.json', [
       'packages/markdown-parser',
     ]),
@@ -176,6 +179,7 @@ async function main() {
     'markstream-vue',
     'markstream-vue2',
     'markstream-react',
+    'markstream-octane',
   ])
   if (!packageByName.has(parserName)) {
     throw new Error(`[nightly] Expected parser package "${parserName}" not found in package list.`)

@@ -31,7 +31,7 @@ let brotliCompressPromise: Promise<BrotliCompressModule> | null = null
 async function loadBrotliCompress() {
   brotliCompressPromise ||= import('brotli-compress').then((module) => {
     const loaded = module as BrotliCompressModule
-    return loaded.compress ? loaded : loaded.default!
+    return loaded.default ?? loaded
   })
   return brotliCompressPromise
 }

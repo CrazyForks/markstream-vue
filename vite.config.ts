@@ -7,6 +7,7 @@ import UnpluginClassExtractor from 'unplugin-class-extractor/vite'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
 import dts from 'vite-plugin-dts'
+import { configDefaults } from 'vitest/config'
 import { name } from './package.json'
 
 // https://vitejs.dev/config/
@@ -175,6 +176,7 @@ export default defineConfig(({ mode }) => {
     build,
     test: {
       environment: 'jsdom',
+      exclude: [...configDefaults.exclude, 'packages/markstream-octane/tests/**'],
       setupFiles: ['./test/setup/vitest.setup.ts'],
       restoreMocks: true,
       testTimeout: 10000,

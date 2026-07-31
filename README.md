@@ -2,7 +2,7 @@
 
 `markstream-vue` is a Vue 3 / Nuxt / VitePress streaming Markdown renderer for AI chat, LLM token streams, SSE/WebSocket output, incomplete Markdown, long AI responses, Mermaid, KaTeX, and streaming code blocks.
 
-Markstream is the renderer family for Vue, React, Svelte, Angular, and Vue 2. Use sibling packages for non-Vue frameworks; use `markstream-vue` when your Vue/Nuxt/VitePress UI needs stable partial Markdown states, mobile WebView rendering, safe component rendering, and progressive heavy blocks.
+Markstream is the renderer family for Vue, React, Octane, Svelte, Angular, and Vue 2. Use sibling packages for non-Vue frameworks; use `markstream-vue` when your Vue/Nuxt/VitePress UI needs stable partial Markdown states, mobile WebView rendering, safe component rendering, and progressive heavy blocks.
 
 [![中文版](https://img.shields.io/badge/docs-中文文档-blue)](README.zh-CN.md)
 [![Docs](https://img.shields.io/badge/docs-vitepress-blue)](https://markstream.simonhe.me/)
@@ -68,6 +68,7 @@ Start with the [framework overview](https://markstream.simonhe.me/frameworks) if
 | --- | --- | --- | --- |
 | `markstream-vue` | Vue 3 / Nuxt / VitePress | `pnpm add markstream-vue` | [Framework overview](https://markstream.simonhe.me/frameworks) · [Vue landing](https://markstream.simonhe.me/frameworks/vue) · [Nuxt landing](https://markstream.simonhe.me/frameworks/nuxt) |
 | `markstream-react` | React / Next.js / Remix | `pnpm add markstream-react` | [React landing](https://markstream.simonhe.me/frameworks/react) · [Next.js landing](https://markstream.simonhe.me/frameworks/next) |
+| `markstream-octane` | Octane | `pnpm add markstream-octane octane` | [Package guide](./packages/markstream-octane/README.md) · [Local playground](./playground-octane) |
 | `markstream-svelte` | Svelte 5 | `pnpm add markstream-svelte svelte@^5` | [Svelte landing](https://markstream.simonhe.me/frameworks/svelte) · [Quick start](https://markstream.simonhe.me/guide/svelte) |
 | `markstream-angular` | Angular standalone | `pnpm add markstream-angular` | [Angular landing](https://markstream.simonhe.me/frameworks/angular) · [Quick start](https://markstream.simonhe.me/guide/angular-quick-start) |
 | `markstream-vue2` | Vue 2.6 / 2.7 | `pnpm add markstream-vue2` | [Vue 2 landing](https://markstream.simonhe.me/frameworks/vue2) · [Quick start](https://markstream.simonhe.me/guide/vue2-quick-start) |
@@ -78,6 +79,7 @@ Start with the [framework overview](https://markstream.simonhe.me/frameworks) if
 
 - **Vue 3 / Nuxt / VitePress** → `markstream-vue`
 - **React / Next.js / Remix** → `markstream-react`
+- **Octane** → `markstream-octane`
 - **Svelte 5** → `markstream-svelte`
 - **Angular standalone** → `markstream-angular`
 - **Vue 2.6 / 2.7** → `markstream-vue2`
@@ -88,7 +90,7 @@ Start with the [framework overview](https://markstream.simonhe.me/frameworks) if
 
 `markstream-vue` has a stable 1.x API contract. The current npm package may still use beta tags while the 1.0 release gate and cross-framework package family are finalized. The stable surface includes `MarkdownRender`, streaming content rendering, pre-parsed node rendering, the safe HTML policy, optional Mermaid / KaTeX / Monaco / D2 / Infographic integrations, virtual-scroll coordination, CSS exports, worker client subpaths, and SSR imports for Vite / Nuxt / VitePress.
 
-Cross-framework renderers (`markstream-react`, `markstream-svelte`, `markstream-angular`, `markstream-vue2`) are available and actively developed. Check each package page for API maturity, framework support, and known limitations.
+Cross-framework renderers (`markstream-react`, `markstream-octane`, `markstream-svelte`, `markstream-angular`, `markstream-vue2`) are available and actively developed. Check each package page for API maturity, framework support, and known limitations.
 
 For the full release contract and Go / No-Go checklist, see [1.0 Release Readiness](./docs/guide/release-1-0.md). For reproducible performance evidence, run `pnpm benchmark:1.0` and use the generated [1.0 Benchmark Report](./docs/guide/benchmark-1-0.md).
 
@@ -125,7 +127,7 @@ For the full release contract and Go / No-Go checklist, see [1.0 Release Readine
 - Purpose-built for **streaming Markdown** (AI/chat/SSE), designed to minimize flicker and keep memory predictable.
 - **Two render modes**: virtual window for long docs, incremental batching for “typing” effects.
 - **Progressive diagrams** (Mermaid) and **streaming code blocks** (Monaco/Shiki) that keep up with diffs.
-- Works with **raw Markdown strings or pre-parsed nodes**, with custom framework components in Vue, React, Svelte, and Angular.
+- Works with **raw Markdown strings or pre-parsed nodes**, with custom framework components in Vue, React, Octane, Svelte, and Angular.
 - TypeScript-first, ship-ready defaults — import CSS and render.
 
 ## Choose Your Path
@@ -145,6 +147,7 @@ For the full release contract and Go / No-Go checklist, see [1.0 Release Readine
 | --- | --- |
 | Vue 3 | https://markstream-vue.simonhe.me/ |
 | React | https://markstream-react.pages.dev/ |
+| Octane | `pnpm play:octane` |
 | Svelte | https://markstream-svelte.pages.dev/ |
 | Angular | https://markstream-angular.pages.dev/ |
 | Nuxt | https://markstream-nuxt.pages.dev/ |
@@ -234,6 +237,23 @@ export function Message({ content, isDone }: { content: string, isDone: boolean 
 ```
 
 For live SSE/WebSocket surfaces in Next.js, use root `markstream-react` inside a `'use client'` component. For SSR-first or server-only Markdown, start from the [Next.js guide](https://markstream.simonhe.me/frameworks/next).
+
+### Octane
+
+```bash
+pnpm add markstream-octane octane
+```
+
+```tsrx
+import { NodeRenderer } from 'markstream-octane'
+import 'markstream-octane/index.css'
+
+export function Message(props: { content: string, isDone: boolean }) {
+  return <NodeRenderer content={props.content} final={props.isDone} />
+}
+```
+
+Add `octane/compiler/vite` to Vite and configure `.tsrx` as shown in the [package guide](./packages/markstream-octane/README.md). The package ships precompiled client and server entries; application source still uses the normal Octane compiler.
 
 ### Svelte 5
 

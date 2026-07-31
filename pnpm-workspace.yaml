@@ -6,6 +6,7 @@ packages:
   - playground-vue2
   - playground-vue2-cli
   - playground-nuxt
+  - playground-octane
   - playground-react18
   - playground-react19
   - playground-svelte

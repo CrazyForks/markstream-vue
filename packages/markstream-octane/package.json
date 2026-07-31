@@ -1,0 +1,149 @@
+{
+  "name": "markstream-octane",
+  "type": "module",
+  "version": "0.0.56-beta.0",
+  "description": "Octane streaming Markdown renderer for AI chat, LLM token streams, SSE/WebSocket output, incomplete Markdown, long documents, Mermaid, KaTeX, Shiki, Monaco, and custom Octane components.",
+  "author": "Simon He",
+  "license": "MIT",
+  "homepage": "https://markstream.simonhe.me",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Simon-He95/markstream-vue.git",
+    "directory": "packages/markstream-octane"
+  },
+  "bugs": {
+    "url": "https://github.com/Simon-He95/markstream-vue/issues"
+  },
+  "keywords": [
+    "octane",
+    "markdown",
+    "markdown-renderer",
+    "streaming-markdown-renderer",
+    "octane-markdown",
+    "streamdown-alternative",
+    "streaming-markdown",
+    "ai-markdown-renderer",
+    "ai-chat",
+    "llm",
+    "llm-markdown",
+    "llm-streaming",
+    "sse",
+    "sse-markdown",
+    "websocket",
+    "websocket-markdown",
+    "mermaid",
+    "streaming-mermaid",
+    "katex",
+    "streaming-katex",
+    "shiki",
+    "monaco",
+    "monaco-editor",
+    "streaming-code-blocks",
+    "large-documents",
+    "safe-html",
+    "markstream-octane",
+    "markstream"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/client/index.js",
+      "node": "./dist/server/index.js",
+      "import": "./dist/client/index.js",
+      "default": "./dist/client/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "node": "./dist/server/index.js",
+      "import": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    },
+    "./index.css": "./dist/index.css",
+    "./index.px.css": "./dist/index.px.css",
+    "./index.tailwind.css": "./dist/index.tailwind.css",
+    "./tailwind": {
+      "types": "./dist/tailwind.d.ts",
+      "import": "./dist/tailwind.js",
+      "require": "./dist/tailwind.cjs"
+    },
+    "./workers/katexRenderer.worker": "./dist/client/workers/katexRenderer.worker.js",
+    "./workers/mermaidParser.worker": "./dist/client/workers/mermaidParser.worker.js"
+  },
+  "main": "./dist/server/index.js",
+  "module": "./dist/client/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite dev",
+    "build": "pnpm --dir ../markdown-parser build && pnpm --dir ../markstream-core build && vite build --mode npm-client && vite build --mode npm-server && node ./scripts/finalize-runtime-build.mjs && node ./scripts/finalize-tailwind-export.mjs && vite build -c vite.config.tailwind.ts --mode npm && node ./scripts/copy-tailwind-css.mjs && node ../../scripts/generate-px-css.mjs && pnpm run build:dts && node ./scripts/check-built-package.mjs",
+    "build:analyze": "ANALYZE=true pnpm build",
+    "build:dts": "node ./scripts/generate-tsrx-types.mjs --out-dir dist/types && rollup -c ./scripts/rollup.dts.config.mjs",
+    "check:exports": "node ./scripts/check-built-package.mjs",
+    "preview": "vite preview",
+    "test": "pnpm run test:client && pnpm run test:ssr",
+    "test:client": "vitest run --config vitest.config.ts",
+    "test:ssr": "vitest run --config vitest.ssr.config.ts",
+    "typecheck": "tsrx-tsc --noEmit -p tsconfig.json",
+    "size:check": "node ../../scripts/check-package-size.mjs",
+    "check:core-published": "node ../../scripts/check-core-published.mjs --package-json package.json --core-package-json ../markstream-core/package.json",
+    "check:workspace-deps-published": "node ../../scripts/check-workspace-deps-published.mjs --package-json package.json",
+    "release": "pnpm run check:workspace-deps-published && bumpp --all --commit --no-tag --no-push --execute 'pnpm --workspace-root run docs:llms:generate' && pnpm publish --access public $(node ../../scripts/dist-tag.mjs) && node ../../scripts/tag-package.mjs --package-json package.json --push"
+  },
+  "peerDependencies": {
+    "@antv/infographic": "^0.2.3",
+    "@terrastruct/d2": ">=0.1.33",
+    "katex": ">=0.16.22",
+    "mermaid": ">=11",
+    "octane": "^0.1.21",
+    "stream-markdown": ">=0.0.16",
+    "stream-monaco": ">=0.0.48"
+  },
+  "peerDependenciesMeta": {
+    "@antv/infographic": {
+      "optional": true
+    },
+    "@terrastruct/d2": {
+      "optional": true
+    },
+    "katex": {
+      "optional": true
+    },
+    "mermaid": {
+      "optional": true
+    },
+    "stream-markdown": {
+      "optional": true
+    },
+    "stream-monaco": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
+    "clsx": "^2.1.1",
+    "markstream-core": "workspace:*",
+    "stream-markdown-parser": "workspace:*"
+  },
+  "devDependencies": {
+    "@octanejs/testing-library": "^0.1.18",
+    "@testing-library/dom": "^10.4.1",
+    "@tsrx/core": "^0.1.56",
+    "@tsrx/typescript-plugin": "^0.3.118",
+    "@types/react": "^19.2.14",
+    "autoprefixer": "^10.5.4",
+    "jsdom": "^24.1.3",
+    "octane": "^0.1.21",
+    "rollup": "^3.30.0",
+    "rollup-plugin-dts": "^5.3.1",
+    "rollup-plugin-visualizer": "^6.0.11",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16",
+    "vite-plugin-dts": "^4.5.4"
+  }
+}

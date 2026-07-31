@@ -74,6 +74,17 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run test:smoke:react
 
+      - name: Octane package tests and packed install smoke (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pnpm --filter markstream-octane typecheck
+          pnpm --filter markstream-octane test
+          pnpm run test:smoke:octane
+
+      - name: Octane playground browser smoke (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run test:e2e:octane-playground
+
       - name: Run SSR check
         run: nr check:ssr
 
