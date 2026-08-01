@@ -110,6 +110,62 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(timing.processTokensReusedTopLevelNodes).toBeGreaterThan(0)
   })
 
+  it('reuses stable prefixes containing explicit markdown links', () => {
+    const md = getMarkdown('stream-parser-link-prefix-reuse')
+    const coldMd = getMarkdown('stream-parser-link-prefix-reuse-cold')
+    const base = `${Array.from(
+      { length: 40 },
+      (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1}).`,
+    ).join('\n\n')}\n\n`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph with [another link](/guide/next).\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+    }))
+    expect(timing.processTokensReusedTopLevelNodes).toBe(40)
+    expect(second[0]).toBe(first[0])
+    expect(second[39]).toBe(first[39])
+  })
+
+  it('does not reuse unresolved links when an appended definition changes them', () => {
+    const md = getMarkdown('stream-parser-appended-reference-invalidation')
+    const coldMd = getMarkdown('stream-parser-appended-reference-invalidation-cold')
+    const base = `[label][target]\n\n${buildLargeAppendFriendlyDoc(40)}`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}[target]: https://example.com\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+    }))
+    expect(second[0]).not.toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+  })
+
   it('keeps every reusable dirty-tail result equivalent to a cold parse', () => {
     const md = getMarkdown('stream-parser-structured-tail-equivalence')
     const coldMd = getMarkdown('stream-parser-structured-tail-equivalence-cold')

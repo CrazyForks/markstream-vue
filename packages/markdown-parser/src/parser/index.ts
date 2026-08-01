@@ -138,6 +138,9 @@ const REUSABLE_INLINE_TOKEN_TYPES = new Set([
   'hardbreak',
   'ins_close',
   'ins_open',
+  'link',
+  'link_close',
+  'link_open',
   'mark_close',
   'mark_open',
   's_close',
@@ -228,6 +231,8 @@ function processTokensWithTiming(tokens: MarkdownToken[], options: ParseOptions 
 function hasOnlyReusableInlineTokens(tokens: MarkdownToken[]): boolean {
   return tokens.every((token) => {
     if (!REUSABLE_INLINE_TOKEN_TYPES.has(token.type))
+      return false
+    if (token.type === 'link_open' && (token.markup === 'linkify' || token.markup === 'autolink'))
       return false
 
     const children = token.children as MarkdownToken[] | null
