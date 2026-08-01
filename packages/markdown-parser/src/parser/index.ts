@@ -232,6 +232,8 @@ function hasOnlyReusableInlineTokens(tokens: MarkdownToken[]): boolean {
   return tokens.every((token) => {
     if (!REUSABLE_INLINE_TOKEN_TYPES.has(token.type))
       return false
+    if (token.type === 'link' && token.meta?.markstreamLinkOrigin !== 'explicit')
+      return false
     if (token.type === 'link_open' && (token.markup === 'linkify' || token.markup === 'autolink'))
       return false
 
@@ -386,12 +388,16 @@ function processTopLevelTokensWithReuse(
   timing: ParseTimingMetrics | undefined,
 ) {
   const owner = md as unknown as object
-  const groups = getReusableTopLevelTokenGroups(tokens)
-  const cacheable = shouldUseTopLevelStreamParse(md, options)
+  const reuseEnabled = shouldUseTopLevelStreamParse(md, options)
     && canReuseStructuredStreamNodes(options)
-    && groups !== null
 
-  if (!cacheable) {
+  if (!reuseEnabled) {
+    structuredStreamCache.delete(owner)
+    return processTokensWithTiming(tokens, options, timing)
+  }
+
+  const groups = getReusableTopLevelTokenGroups(tokens)
+  if (!groups) {
     structuredStreamCache.delete(owner)
     return processTokensWithTiming(tokens, options, timing)
   }

@@ -349,6 +349,24 @@ function sumTiming(rows, key) {
   return round(rows.reduce((total, row) => total + Number(row.timing?.[key] || 0), 0))
 }
 
+function summarizeParserStreamRuns(streamRuns) {
+  return {
+    chunks: median(streamRuns.map(run => run.chunks)),
+    totalMedianMs: round(median(streamRuns.map(run => run.totalMs))),
+    medianCommitMs: round(median(streamRuns.map(run => run.medianCommitMs))),
+    p95CommitMs: round(median(streamRuns.map(run => run.p95CommitMs))),
+    maxCommitMs: round(median(streamRuns.map(run => run.maxCommitMs))),
+    finalFlushMedianMs: round(median(streamRuns.map(run => run.finalFlushMs))),
+    processTokensMedianMs: round(median(streamRuns.map(run => run.processTokensMs))),
+    processTokensInputTokens: round(median(streamRuns.map(run => run.processTokensInputTokens))),
+    processTokensReusedTopLevelNodes: round(median(streamRuns.map(run => run.processTokensReusedTopLevelNodes))),
+    parserTotalMedianMs: round(median(streamRuns.map(run => run.parseTotalMs))),
+    medianNodesBeforeFinal: median(streamRuns.map(run => run.nodesBeforeFinal)),
+    medianNodesAfterFinal: median(streamRuns.map(run => run.nodesAfterFinal)),
+    streamStats: streamRuns[Math.floor(streamRuns.length / 2)]?.streamStats ?? null,
+  }
+}
+
 async function runParserBenchmarks(corpus) {
   if (!existsSync(parserDistPath)) {
     throw new Error(
@@ -383,57 +401,64 @@ async function runParserBenchmarks(corpus) {
       }
     }
 
-    const streamRuns = []
-    for (let roundIndex = 0; roundIndex < parserWarmups + parserRounds; roundIndex++) {
-      const md = getMarkdown(`real-corpus-stream-${testCase.id}-${roundIndex}`)
-      md.stream?.reset?.()
-      let current = ''
-      const chunks = createChunks(testCase.markdown, streamChunkCount)
-      const commitDurations = []
-      const commitTimings = []
-      let lastNodes = []
+    const streamingResults = {}
+    for (const mode of [
+      { key: 'default', reuseStableTopLevelNodes: false },
+      { key: 'structuredReuse', reuseStableTopLevelNodes: true },
+    ]) {
+      const streamRuns = []
+      for (let roundIndex = 0; roundIndex < parserWarmups + parserRounds; roundIndex++) {
+        const md = getMarkdown(`real-corpus-stream-${mode.key}-${testCase.id}-${roundIndex}`)
+        md.stream?.reset?.()
+        let current = ''
+        const chunks = createChunks(testCase.markdown, streamChunkCount)
+        const commitDurations = []
+        const commitTimings = []
+        let lastNodes = []
 
-      for (const chunk of chunks) {
-        current += chunk
-        const timing = {}
-        const startedAt = performance.now()
-        lastNodes = parseMarkdownToStructure(current, md, {
-          final: false,
+        for (const chunk of chunks) {
+          current += chunk
+          const timing = {}
+          const startedAt = performance.now()
+          lastNodes = parseMarkdownToStructure(current, md, {
+            final: false,
+            streamParse: true,
+            ...(mode.reuseStableTopLevelNodes ? { __reuseStableTopLevelNodes: true } : {}),
+            __timing: timing,
+          })
+          commitDurations.push(performance.now() - startedAt)
+          commitTimings.push({ timing })
+        }
+
+        const finalTiming = {}
+        const finalStartedAt = performance.now()
+        const finalNodes = parseMarkdownToStructure(testCase.markdown, md, {
+          final: true,
           streamParse: true,
-          __reuseStableTopLevelNodes: true,
-          __timing: timing,
+          __timing: finalTiming,
         })
-        commitDurations.push(performance.now() - startedAt)
-        commitTimings.push({ timing })
-      }
+        const finalFlushMs = performance.now() - finalStartedAt
 
-      const finalTiming = {}
-      const finalStartedAt = performance.now()
-      const finalNodes = parseMarkdownToStructure(testCase.markdown, md, {
-        final: true,
-        streamParse: true,
-        __timing: finalTiming,
-      })
-      const finalFlushMs = performance.now() - finalStartedAt
-
-      if (roundIndex >= parserWarmups) {
-        streamRuns.push({
-          totalMs: commitDurations.reduce((total, value) => total + value, 0),
-          medianCommitMs: median(commitDurations),
-          p95CommitMs: percentile(commitDurations, 0.95),
-          maxCommitMs: Math.max(...commitDurations),
-          finalFlushMs,
-          chunks: chunks.length,
-          nodesBeforeFinal: lastNodes.length,
-          nodesAfterFinal: finalNodes.length,
-          processTokensMs: sumTiming(commitTimings, 'processTokensMs'),
-          processTokensInputTokens: sumTiming(commitTimings, 'processTokensInputTokens'),
-          processTokensReusedTopLevelNodes: sumTiming(commitTimings, 'processTokensReusedTopLevelNodes'),
-          parseTotalMs: sumTiming(commitTimings, 'parseMarkdownToStructureTotalMs'),
-          finalTiming,
-          streamStats: typeof md.stream?.stats === 'function' ? md.stream.stats() : null,
-        })
+        if (roundIndex >= parserWarmups) {
+          streamRuns.push({
+            totalMs: commitDurations.reduce((total, value) => total + value, 0),
+            medianCommitMs: median(commitDurations),
+            p95CommitMs: percentile(commitDurations, 0.95),
+            maxCommitMs: Math.max(...commitDurations),
+            finalFlushMs,
+            chunks: chunks.length,
+            nodesBeforeFinal: lastNodes.length,
+            nodesAfterFinal: finalNodes.length,
+            processTokensMs: sumTiming(commitTimings, 'processTokensMs'),
+            processTokensInputTokens: sumTiming(commitTimings, 'processTokensInputTokens'),
+            processTokensReusedTopLevelNodes: sumTiming(commitTimings, 'processTokensReusedTopLevelNodes'),
+            parseTotalMs: sumTiming(commitTimings, 'parseMarkdownToStructureTotalMs'),
+            finalTiming,
+            streamStats: typeof md.stream?.stats === 'function' ? md.stream.stats() : null,
+          })
+        }
       }
+      streamingResults[mode.key] = summarizeParserStreamRuns(streamRuns)
     }
 
     results.push({
@@ -448,21 +473,8 @@ async function runParserBenchmarks(corpus) {
         processTokensMedianMs: round(median(finalRuns.map(run => run.timing.processTokensMs ?? 0))),
         parserTotalMedianMs: round(median(finalRuns.map(run => run.timing.parseMarkdownToStructureTotalMs ?? 0))),
       },
-      streaming: {
-        chunks: median(streamRuns.map(run => run.chunks)),
-        totalMedianMs: round(median(streamRuns.map(run => run.totalMs))),
-        medianCommitMs: round(median(streamRuns.map(run => run.medianCommitMs))),
-        p95CommitMs: round(median(streamRuns.map(run => run.p95CommitMs))),
-        maxCommitMs: round(median(streamRuns.map(run => run.maxCommitMs))),
-        finalFlushMedianMs: round(median(streamRuns.map(run => run.finalFlushMs))),
-        processTokensMedianMs: round(median(streamRuns.map(run => run.processTokensMs))),
-        processTokensInputTokens: round(median(streamRuns.map(run => run.processTokensInputTokens))),
-        processTokensReusedTopLevelNodes: round(median(streamRuns.map(run => run.processTokensReusedTopLevelNodes))),
-        parserTotalMedianMs: round(median(streamRuns.map(run => run.parseTotalMs))),
-        medianNodesBeforeFinal: median(streamRuns.map(run => run.nodesBeforeFinal)),
-        medianNodesAfterFinal: median(streamRuns.map(run => run.nodesAfterFinal)),
-        streamStats: streamRuns[Math.floor(streamRuns.length / 2)]?.streamStats ?? null,
-      },
+      streaming: streamingResults.default,
+      structuredReuseStreaming: streamingResults.structuredReuse,
     })
   }
 
@@ -1828,11 +1840,16 @@ function formatBoolean(value) {
 
 function renderParserTable(parserResults) {
   const lines = [
-    '| Case | Bytes | Nodes | Final median | Process median | Stream total | Stream p95 commit | Processed tokens | Reused prefix nodes | Final flush |',
-    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    '| Case | Mode | Bytes | Nodes | Final median | Process median | Stream total | Stream p95 commit | Processed tokens | Reused prefix nodes | Final flush |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
   ]
   for (const row of parserResults) {
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.final.medianNodes)} | ${formatMs(row.final.medianMs)} | ${formatMs(row.final.processTokensMedianMs)} | ${formatMs(row.streaming.totalMedianMs)} | ${formatMs(row.streaming.p95CommitMs)} | ${formatNumber(row.streaming.processTokensInputTokens)} | ${formatNumber(row.streaming.processTokensReusedTopLevelNodes)} | ${formatMs(row.streaming.finalFlushMedianMs)} |`)
+    for (const [mode, streaming] of [
+      ['public-default', row.streaming],
+      ['structured-reuse', row.structuredReuseStreaming],
+    ]) {
+      lines.push(`| ${row.id} | ${mode} | ${row.bytes} | ${formatNumber(row.final.medianNodes)} | ${formatMs(row.final.medianMs)} | ${formatMs(row.final.processTokensMedianMs)} | ${formatMs(streaming.totalMedianMs)} | ${formatMs(streaming.p95CommitMs)} | ${formatNumber(streaming.processTokensInputTokens)} | ${formatNumber(streaming.processTokensReusedTopLevelNodes)} | ${formatMs(streaming.finalFlushMedianMs)} |`)
+    }
   }
   return lines.join('\n')
 }

@@ -110,12 +110,41 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(timing.processTokensReusedTopLevelNodes).toBeGreaterThan(0)
   })
 
+  it('skips reusable-token eligibility scans when structured reuse is disabled', () => {
+    const md = getMarkdown('stream-parser-disabled-structured-reuse-scan')
+    let eligibilityScans = 0
+    ;(md as any).core.ruler.after('fix_link_tokens', 'track_reusable_token_scans', (state: any) => {
+      for (const inline of state.tokens?.filter((token: any) => token.type === 'inline') ?? []) {
+        const children = inline.children
+        if (!Array.isArray(children))
+          continue
+        children.every = (...args: any[]) => {
+          eligibilityScans++
+          return Array.prototype.every.apply(children, args as any)
+        }
+      }
+    })
+
+    const source = `${buildLargeAppendFriendlyDoc(40)}[link](https://example.com)\n\n`
+    parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+    })
+    parseMarkdownToStructure(source, md, {
+      final: true,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+
+    expect(eligibilityScans).toBe(0)
+  })
+
   it('reuses stable prefixes containing explicit markdown links', () => {
     const md = getMarkdown('stream-parser-link-prefix-reuse')
     const coldMd = getMarkdown('stream-parser-link-prefix-reuse-cold')
     const base = `${Array.from(
       { length: 40 },
-      (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1}).`,
+      (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1})`,
     ).join('\n\n')}\n\n`
     const first = parseMarkdownToStructure(base, md, {
       final: false,
@@ -123,7 +152,7 @@ describe('parseMarkdownToStructure stream parser integration', () => {
       __reuseStableTopLevelNodes: true,
     } as any)
     const timing: { processTokensReusedTopLevelNodes?: number } = {}
-    const source = `${base}Appended paragraph with [another link](/guide/next).\n\n`
+    const source = `${base}Appended paragraph with [another link](/guide/next)\n\n`
     const second = parseMarkdownToStructure(source, md, {
       final: false,
       streamParse: true,
@@ -138,6 +167,139 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(timing.processTokensReusedTopLevelNodes).toBe(40)
     expect(second[0]).toBe(first[0])
     expect(second[39]).toBe(first[39])
+  })
+
+  it('reuses origin-tagged explicit synthetic links', () => {
+    const md = getMarkdown('stream-parser-explicit-synthetic-link-reuse')
+    const coldMd = getMarkdown('stream-parser-explicit-synthetic-link-reuse-cold')
+    const base = `${Array.from(
+      { length: 40 },
+      (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1}).`,
+    ).join('\n\n')}\n\n`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const inline = (md as any).stream.peek().find((token: any) => token.type === 'inline')
+    const synthetic = inline?.children?.find((token: any) => token.type === 'link')
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph.\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
+    expect(synthetic?.meta?.markstreamLinkOrigin).toBe('explicit')
+    expect(JSON.stringify(first)).not.toContain('markstreamLinkOrigin')
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+    }))
+    expect(timing.processTokensReusedTopLevelNodes).toBe(40)
+    expect(second[0]).toBe(first[0])
+    expect(second[39]).toBe(first[39])
+  })
+
+  it('does not reuse linkify-derived synthetic links', () => {
+    const installSyntheticLinkifyToken = (md: ReturnType<typeof getMarkdown>) => {
+      ;(md as any).core.ruler.before('fix_link_tokens', 'test_synthetic_linkify_reuse', (state: any) => {
+        const inline = state.tokens?.find((token: any) =>
+          token.type === 'inline' && token.content === 'SYNTHETIC_LINKIFY_CASE',
+        )
+        if (!inline)
+          return
+
+        inline.content = '[site](https://example.com) after'
+        inline.children = [
+          { type: 'text', content: '[site](', raw: '[site](' },
+          { type: 'link_open', tag: 'a', nesting: 1, markup: 'linkify', attrs: [['href', 'https://example.com']] },
+          { type: 'text', content: 'https://example.com', raw: 'https://example.com' },
+          { type: 'link_close', tag: 'a', nesting: -1, markup: 'linkify' },
+          { type: 'text', content: ') after', raw: ') after' },
+        ]
+      })
+    }
+
+    const md = getMarkdown('stream-parser-synthetic-linkify-reuse')
+    const coldMd = getMarkdown('stream-parser-synthetic-linkify-reuse-cold')
+    installSyntheticLinkifyToken(md)
+    installSyntheticLinkifyToken(coldMd)
+
+    const base = `SYNTHETIC_LINKIFY_CASE\n\n${buildLargeAppendFriendlyDoc(40)}`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph.\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+    const synthetic = (md as any).stream.peek().find((token: any) => token.type === 'inline')?.children?.[0]
+
+    expect(synthetic).toMatchObject({
+      type: 'link',
+      meta: { markstreamLinkOrigin: 'linkify' },
+      href: 'https://example.com',
+      loading: false,
+    })
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+    }))
+    expect(second[0]).not.toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+  })
+
+  it('keeps loading-link completion and final transition cold-parse equivalent', () => {
+    const md = getMarkdown('stream-parser-loading-link-completion')
+    const coldMd = getMarkdown('stream-parser-loading-link-completion-cold')
+    const base = buildLargeAppendFriendlyDoc(40)
+    const stages = [
+      `${base}[x](http://a`,
+      `${base}[x](http://a)`,
+      `${base}[x](http://a)\n\nAppended paragraph.\n\n`,
+    ]
+
+    for (const [index, source] of stages.entries()) {
+      const timing: { processTokensReusedTopLevelNodes?: number } = {}
+      const streamed = parseMarkdownToStructure(source, md, {
+        final: false,
+        streamParse: true,
+        __reuseStableTopLevelNodes: true,
+        __timing: timing,
+      } as any)
+      const cold = parseMarkdownToStructure(source, coldMd, {
+        final: false,
+        streamParse: false,
+      })
+
+      expect(streamed).toEqual(cold)
+      if (index === 0) {
+        const inlineChildren = (md as any).stream.peek().flatMap((token: any) => token.children ?? [])
+        const synthetic = inlineChildren.find((token: any) => token.type === 'link')
+        expect(JSON.stringify(streamed)).toContain('"loading":true')
+        expect(synthetic?.meta?.markstreamLinkOrigin).toBe('linkify')
+        expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+      }
+    }
+
+    const source = stages.at(-1)!
+    expect(parseMarkdownToStructure(source, md, {
+      final: true,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: true,
+      streamParse: false,
+    }))
   })
 
   it('does not reuse unresolved links when an appended definition changes them', () => {

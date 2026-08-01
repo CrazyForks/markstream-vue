@@ -13,6 +13,24 @@ type SyntheticLinkToken = MarkdownToken & {
   children?: MarkdownToken[] | null
 }
 
+type SyntheticLinkOrigin = 'autolink' | 'explicit' | 'linkify' | 'recovery'
+
+function getSyntheticLinkOrigin(markup: string | undefined): SyntheticLinkOrigin {
+  if (markup === 'linkify' || markup === 'autolink')
+    return markup
+  return 'recovery'
+}
+
+function setSyntheticLinkOrigin<T extends SyntheticLinkToken>(token: T, origin: SyntheticLinkOrigin): T {
+  Object.defineProperty(token, 'meta', {
+    configurable: true,
+    enumerable: false,
+    value: { markstreamLinkOrigin: origin },
+    writable: true,
+  })
+  return token
+}
+
 // Small helpers to reduce repetition when building token fragments
 function textToken(content: string): MarkdownToken {
   return {
@@ -48,14 +66,19 @@ function pushEmClose(arr: MarkdownToken[], type: number) {
   }
 }
 
-function createLinkToken(text: string, href: string, loading: boolean): SyntheticLinkToken {
+function createLinkToken(
+  text: string,
+  href: string,
+  loading: boolean,
+  origin: SyntheticLinkOrigin = 'recovery',
+): SyntheticLinkToken {
   let title = ''
   if (href.includes('"')) {
     const temps = href.split('"')
     href = temps[0].trim()
     title = temps[1].trim()
   }
-  return {
+  return setSyntheticLinkOrigin({
     type: 'link',
     loading,
     href,
@@ -69,7 +92,7 @@ function createLinkToken(text: string, href: string, loading: boolean): Syntheti
       },
     ],
     raw: String(`[${text}](${href})`),
-  }
+  }, origin)
 }
 
 function appendToLinkToken(link: SyntheticLinkToken, suffix: string) {
@@ -347,6 +370,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
       if (match) {
         let beforeText = curToken.content!.slice(0, match.index)
         const emphasisMatch = beforeText.match(/(\*+)$/)
+        const origin = getSyntheticLinkOrigin(tokens[i + 1]?.markup)
         const replacerTokens = []
         if (emphasisMatch) {
           beforeText = beforeText.slice(0, emphasisMatch.index)
@@ -360,7 +384,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
             href += tokens[i + 4]?.content || ''
             tokens[i + 4].content = ''
           }
-          replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')')))
+          replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')'), origin))
           pushEmClose(replacerTokens, type)
           if (tokens[i + 4]?.type === 'text') {
             const afterText = tokens[i + 4].content?.replace(/^\)\**/, '')
@@ -389,7 +413,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
             }
             // wrap the link with emphasis open/close tokens
             pushEmOpen(replacerTokens, type)
-            replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')')))
+            replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')'), origin))
             pushEmClose(replacerTokens, type)
             // we've already pushed the link, skip the standard push below
             if (tokens[i + 4]?.type === 'text') {
@@ -414,7 +438,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
             href += tokens[i + 4]?.content || ''
             tokens[i + 4].content = ''
           }
-          replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')')))
+          replacerTokens.push(createLinkToken(text, href, !tokens[i + 4]?.content?.startsWith(')'), origin))
           if (tokens[i + 4]?.type === 'text') {
             const afterText = tokens[i + 4].content?.replace(/^\)/, '')
             if (afterText)
@@ -444,14 +468,14 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
             tokens[i + 3].content = ''
           }
 
-          replacerTokens.push(createLinkToken(text, href, loading))
+          replacerTokens.push(createLinkToken(text, href, loading, 'linkify'))
           const afterText = tokens[i + 3].content?.replace(/^\)\**/, '')
           if (afterText)
             replacerTokens.push(textToken(afterText))
           tokens.splice(i - 4, 8, ...replacerTokens)
         }
         else {
-          replacerTokens.push({
+          replacerTokens.push(setSyntheticLinkOrigin({
             type: 'link',
             loading: true,
             href,
@@ -465,7 +489,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
               },
             ],
             raw: String(`[${text}](${href})`),
-          })
+          }, 'linkify'))
           tokens.splice(i - 4, 7, ...replacerTokens)
         }
         continue
@@ -535,7 +559,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
         }
       }
 
-      const linkToken: SyntheticLinkToken = {
+      const linkToken = setSyntheticLinkOrigin({
         type: 'link',
         loading: false,
         href,
@@ -549,7 +573,7 @@ function fixLinkToken(tokens: MarkdownToken[], raw?: string): MarkdownToken[] {
           },
         ],
         raw: String(`[${text}](${href})`),
-      }
+      }, curToken.markup ? getSyntheticLinkOrigin(curToken.markup) : 'explicit')
       replacerTokens.push(linkToken)
       if (emphasisMatch) {
         const type = emphasisMatch[1].length
