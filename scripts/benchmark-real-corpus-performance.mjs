@@ -29,6 +29,7 @@ const browserSmoothStreamingOptions = readJsonObjectEnv('MARKSTREAM_REAL_CORPUS_
 const browserViewportWidth = readPositiveIntEnv('MARKSTREAM_REAL_CORPUS_BROWSER_VIEWPORT_WIDTH', 1280)
 const browserViewportHeight = readPositiveIntEnv('MARKSTREAM_REAL_CORPUS_BROWSER_VIEWPORT_HEIGHT', 900)
 const browserCpuThrottleRate = readPositiveIntEnv('MARKSTREAM_REAL_CORPUS_BROWSER_CPU_THROTTLE_RATE', 1)
+const browserDebugPerformance = process.env.MARKSTREAM_REAL_CORPUS_DEBUG_PERFORMANCE !== '0'
 const browserCoreSmoothStreamingDefaults = {
   minCharsPerSecond: 40,
   maxCharsPerSecond: 1000,
@@ -348,6 +349,24 @@ function sumTiming(rows, key) {
   return round(rows.reduce((total, row) => total + Number(row.timing?.[key] || 0), 0))
 }
 
+function summarizeParserStreamRuns(streamRuns) {
+  return {
+    chunks: median(streamRuns.map(run => run.chunks)),
+    totalMedianMs: round(median(streamRuns.map(run => run.totalMs))),
+    medianCommitMs: round(median(streamRuns.map(run => run.medianCommitMs))),
+    p95CommitMs: round(median(streamRuns.map(run => run.p95CommitMs))),
+    maxCommitMs: round(median(streamRuns.map(run => run.maxCommitMs))),
+    finalFlushMedianMs: round(median(streamRuns.map(run => run.finalFlushMs))),
+    processTokensMedianMs: round(median(streamRuns.map(run => run.processTokensMs))),
+    processTokensInputTokens: round(median(streamRuns.map(run => run.processTokensInputTokens))),
+    processTokensReusedTopLevelNodes: round(median(streamRuns.map(run => run.processTokensReusedTopLevelNodes))),
+    parserTotalMedianMs: round(median(streamRuns.map(run => run.parseTotalMs))),
+    medianNodesBeforeFinal: median(streamRuns.map(run => run.nodesBeforeFinal)),
+    medianNodesAfterFinal: median(streamRuns.map(run => run.nodesAfterFinal)),
+    streamStats: streamRuns[Math.floor(streamRuns.length / 2)]?.streamStats ?? null,
+  }
+}
+
 async function runParserBenchmarks(corpus) {
   if (!existsSync(parserDistPath)) {
     throw new Error(
@@ -382,54 +401,64 @@ async function runParserBenchmarks(corpus) {
       }
     }
 
-    const streamRuns = []
-    for (let roundIndex = 0; roundIndex < parserWarmups + parserRounds; roundIndex++) {
-      const md = getMarkdown(`real-corpus-stream-${testCase.id}-${roundIndex}`)
-      md.stream?.reset?.()
-      let current = ''
-      const chunks = createChunks(testCase.markdown, streamChunkCount)
-      const commitDurations = []
-      const commitTimings = []
-      let lastNodes = []
+    const streamingResults = {}
+    for (const mode of [
+      { key: 'default', reuseStableTopLevelNodes: false },
+      { key: 'structuredReuse', reuseStableTopLevelNodes: true },
+    ]) {
+      const streamRuns = []
+      for (let roundIndex = 0; roundIndex < parserWarmups + parserRounds; roundIndex++) {
+        const md = getMarkdown(`real-corpus-stream-${mode.key}-${testCase.id}-${roundIndex}`)
+        md.stream?.reset?.()
+        let current = ''
+        const chunks = createChunks(testCase.markdown, streamChunkCount)
+        const commitDurations = []
+        const commitTimings = []
+        let lastNodes = []
 
-      for (const chunk of chunks) {
-        current += chunk
-        const timing = {}
-        const startedAt = performance.now()
-        lastNodes = parseMarkdownToStructure(current, md, {
-          final: false,
+        for (const chunk of chunks) {
+          current += chunk
+          const timing = {}
+          const startedAt = performance.now()
+          lastNodes = parseMarkdownToStructure(current, md, {
+            final: false,
+            streamParse: true,
+            ...(mode.reuseStableTopLevelNodes ? { __reuseStableTopLevelNodes: true } : {}),
+            __timing: timing,
+          })
+          commitDurations.push(performance.now() - startedAt)
+          commitTimings.push({ timing })
+        }
+
+        const finalTiming = {}
+        const finalStartedAt = performance.now()
+        const finalNodes = parseMarkdownToStructure(testCase.markdown, md, {
+          final: true,
           streamParse: true,
-          __timing: timing,
+          __timing: finalTiming,
         })
-        commitDurations.push(performance.now() - startedAt)
-        commitTimings.push({ timing })
-      }
+        const finalFlushMs = performance.now() - finalStartedAt
 
-      const finalTiming = {}
-      const finalStartedAt = performance.now()
-      const finalNodes = parseMarkdownToStructure(testCase.markdown, md, {
-        final: true,
-        streamParse: true,
-        __timing: finalTiming,
-      })
-      const finalFlushMs = performance.now() - finalStartedAt
-
-      if (roundIndex >= parserWarmups) {
-        streamRuns.push({
-          totalMs: commitDurations.reduce((total, value) => total + value, 0),
-          medianCommitMs: median(commitDurations),
-          p95CommitMs: percentile(commitDurations, 0.95),
-          maxCommitMs: Math.max(...commitDurations),
-          finalFlushMs,
-          chunks: chunks.length,
-          nodesBeforeFinal: lastNodes.length,
-          nodesAfterFinal: finalNodes.length,
-          processTokensMs: sumTiming(commitTimings, 'processTokensMs'),
-          parseTotalMs: sumTiming(commitTimings, 'parseMarkdownToStructureTotalMs'),
-          finalTiming,
-          streamStats: typeof md.stream?.stats === 'function' ? md.stream.stats() : null,
-        })
+        if (roundIndex >= parserWarmups) {
+          streamRuns.push({
+            totalMs: commitDurations.reduce((total, value) => total + value, 0),
+            medianCommitMs: median(commitDurations),
+            p95CommitMs: percentile(commitDurations, 0.95),
+            maxCommitMs: Math.max(...commitDurations),
+            finalFlushMs,
+            chunks: chunks.length,
+            nodesBeforeFinal: lastNodes.length,
+            nodesAfterFinal: finalNodes.length,
+            processTokensMs: sumTiming(commitTimings, 'processTokensMs'),
+            processTokensInputTokens: sumTiming(commitTimings, 'processTokensInputTokens'),
+            processTokensReusedTopLevelNodes: sumTiming(commitTimings, 'processTokensReusedTopLevelNodes'),
+            parseTotalMs: sumTiming(commitTimings, 'parseMarkdownToStructureTotalMs'),
+            finalTiming,
+            streamStats: typeof md.stream?.stats === 'function' ? md.stream.stats() : null,
+          })
+        }
       }
+      streamingResults[mode.key] = summarizeParserStreamRuns(streamRuns)
     }
 
     results.push({
@@ -444,19 +473,8 @@ async function runParserBenchmarks(corpus) {
         processTokensMedianMs: round(median(finalRuns.map(run => run.timing.processTokensMs ?? 0))),
         parserTotalMedianMs: round(median(finalRuns.map(run => run.timing.parseMarkdownToStructureTotalMs ?? 0))),
       },
-      streaming: {
-        chunks: median(streamRuns.map(run => run.chunks)),
-        totalMedianMs: round(median(streamRuns.map(run => run.totalMs))),
-        medianCommitMs: round(median(streamRuns.map(run => run.medianCommitMs))),
-        p95CommitMs: round(median(streamRuns.map(run => run.p95CommitMs))),
-        maxCommitMs: round(median(streamRuns.map(run => run.maxCommitMs))),
-        finalFlushMedianMs: round(median(streamRuns.map(run => run.finalFlushMs))),
-        processTokensMedianMs: round(median(streamRuns.map(run => run.processTokensMs))),
-        parserTotalMedianMs: round(median(streamRuns.map(run => run.parseTotalMs))),
-        medianNodesBeforeFinal: median(streamRuns.map(run => run.nodesBeforeFinal)),
-        medianNodesAfterFinal: median(streamRuns.map(run => run.nodesAfterFinal)),
-        streamStats: streamRuns[Math.floor(streamRuns.length / 2)]?.streamStats ?? null,
-      },
+      streaming: streamingResults.default,
+      structuredReuseStreaming: streamingResults.structuredReuse,
     })
   }
 
@@ -585,6 +603,7 @@ const timelineThreadKey = ref('')
 const timelineRef = ref(null)
 const smoothStreamingOptions = ${JSON.stringify(browserSmoothStreamingOptions)}
 const rendererOptions = ${JSON.stringify(browserRendererOptions)}
+const debugPerformance = ${JSON.stringify(browserDebugPerformance)}
 const finalTimelineMarkdownOptions = ${JSON.stringify(browserFinalTimelineMarkdownOptions)}
 const chatTranscriptDefinitions = ${JSON.stringify(chatTranscriptDefinitions)}
 const preparedChatStates = new Map()
@@ -606,6 +625,8 @@ function createParsePerformance() {
     streamCommitCount: 0,
     syncCommitCount: 0,
     tokenCloneMs: 0,
+    processTokensInputTokens: 0,
+    processTokensReusedTopLevelNodes: 0,
     processTokensMs: 0,
     parseMarkdownToStructureTotalMs: 0,
     nodeReuseMs: 0,
@@ -637,7 +658,13 @@ function installParsePerformanceHook() {
   window.__realCorpusParsePerformance = createParsePerformance()
   const originalInfo = console.info.bind(console)
   const streamCounterKeys = ['total', 'cacheHits', 'appendHits', 'tailHits', 'fullParses', 'chunkedParses']
-  const parseTimingKeys = ['tokenCloneMs', 'processTokensMs', 'parseMarkdownToStructureTotalMs']
+  const parseTimingKeys = [
+    'tokenCloneMs',
+    'processTokensInputTokens',
+    'processTokensReusedTopLevelNodes',
+    'processTokensMs',
+    'parseMarkdownToStructureTotalMs',
+  ]
   console.info = (...args) => {
     try {
       const label = args[0]
@@ -690,10 +717,14 @@ function resetParsePerformance() {
 }
 
 function readParsePerformance() {
+  if (!debugPerformance)
+    return null
   return JSON.parse(JSON.stringify(window.__realCorpusParsePerformance ?? createParsePerformance()))
 }
 
 function diffParsePerformance(after, before) {
+  if (!after || !before)
+    return null
   const result = createParsePerformance()
   for (const key of [
     'parseCommitCount',
@@ -701,6 +732,8 @@ function diffParsePerformance(after, before) {
     'streamCommitCount',
     'syncCommitCount',
     'tokenCloneMs',
+    'processTokensInputTokens',
+    'processTokensReusedTopLevelNodes',
     'processTokensMs',
     'parseMarkdownToStructureTotalMs',
     'nodeReuseMs',
@@ -1434,7 +1467,7 @@ function renderTimelineItem(props) {
         ...props.markdownProps,
         ...(props.markdownProps.final ? finalTimelineMarkdownOptions : {}),
         class: 'bench-assistant-markdown',
-        debugPerformance: true,
+        debugPerformance,
         renderCodeBlocksAsPre: true,
         smoothStreamingOptions,
         batchRendering: true,
@@ -1498,7 +1531,7 @@ const App = defineComponent({
         mode: mode.value,
         smoothStreaming: smoothStreaming.value,
         smoothStreamingOptions,
-        debugPerformance: true,
+        debugPerformance,
         renderCodeBlocksAsPre: true,
         batchRendering: true,
         ...rendererOptions,
@@ -1562,6 +1595,8 @@ const parsePerformanceNumericKeys = [
   'streamCommitCount',
   'syncCommitCount',
   'tokenCloneMs',
+  'processTokensInputTokens',
+  'processTokensReusedTopLevelNodes',
   'processTokensMs',
   'parseMarkdownToStructureTotalMs',
   'nodeReuseMs',
@@ -1799,6 +1834,14 @@ function formatNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value)) : '-'
 }
 
+function formatDiagnosticMs(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : 'N/A'
+}
+
+function formatDiagnosticNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value)) : 'N/A'
+}
+
 function formatPercent(value) {
   return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '-'
 }
@@ -1809,11 +1852,16 @@ function formatBoolean(value) {
 
 function renderParserTable(parserResults) {
   const lines = [
-    '| Case | Bytes | Nodes | Final median | Process median | Stream total | Stream p95 commit | Final flush |',
-    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    '| Case | Mode | Bytes | Nodes | Final median | Process median | Stream total | Stream p95 commit | Processed tokens | Reused prefix nodes | Final flush |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
   ]
   for (const row of parserResults) {
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.final.medianNodes)} | ${formatMs(row.final.medianMs)} | ${formatMs(row.final.processTokensMedianMs)} | ${formatMs(row.streaming.totalMedianMs)} | ${formatMs(row.streaming.p95CommitMs)} | ${formatMs(row.streaming.finalFlushMedianMs)} |`)
+    for (const [mode, streaming] of [
+      ['public-default', row.streaming],
+      ['structured-reuse', row.structuredReuseStreaming],
+    ]) {
+      lines.push(`| ${row.id} | ${mode} | ${row.bytes} | ${formatNumber(row.final.medianNodes)} | ${formatMs(row.final.medianMs)} | ${formatMs(row.final.processTokensMedianMs)} | ${formatMs(streaming.totalMedianMs)} | ${formatMs(streaming.p95CommitMs)} | ${formatNumber(streaming.processTokensInputTokens)} | ${formatNumber(streaming.processTokensReusedTopLevelNodes)} | ${formatMs(streaming.finalFlushMedianMs)} |`)
+    }
   }
   return lines.join('\n')
 }
@@ -1825,19 +1873,19 @@ function renderBrowserRestoreTable(rows) {
   ]
   for (const row of rows) {
     const m = row.median
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.settledSnapshot?.slots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.nonIgnoredMaxAbsDeltaPx)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.settledSnapshot?.slots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.nonIgnoredMaxAbsDeltaPx)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
   }
   return lines.join('\n')
 }
 
 function renderBrowserStreamTable(rows) {
   const lines = [
-    '| Case | Bytes | Chunks | Total | Timed out | p95 update | Max update | Run frame p95 | Run frame max | Run dropped frames | Run long task | Run long-task busy | Height jumps | Mutations | Task | Layout | Parser total | Node reuse | Signature | Worst non-image/katex final height changes |',
-    '| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+    '| Case | Bytes | Chunks | Total | Timed out | p95 update | Max update | Run frame p95 | Run frame max | Run dropped frames | Run long task | Run long-task busy | Height jumps | Mutations | Task | Layout | Parser total | Reused prefix nodes | Node reuse | Signature | Worst non-image/katex final height changes |',
+    '| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
   ]
   for (const row of rows) {
     const m = row.median
-    lines.push(`| ${row.id} | ${row.bytes} | ${row.runs[0]?.chunks ?? '-'} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.p95UpdateMs)} | ${formatMs(m.maxUpdateMs)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatNumber(m.heightJumps)} | ${formatNumber(m.observers?.mutationCount)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${row.runs[0]?.chunks ?? '-'} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.p95UpdateMs)} | ${formatMs(m.maxUpdateMs)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatNumber(m.heightJumps)} | ${formatNumber(m.observers?.mutationCount)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticNumber(m.parsePerformance?.processTokensReusedTopLevelNodes)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} |`)
   }
   return lines.join('\n')
 }
@@ -1857,7 +1905,7 @@ function renderBrowserChatRestoreTable(rows) {
       Number(m.firstTimelineSnapshot?.scrollHeight ?? 0)
       - Number(m.settledTimelineSnapshot?.scrollHeight ?? 0),
     )
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.runs[0]?.itemCount)} | ${formatNumber(row.runs[0]?.markdownItemCount)} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.restoreReady?.elapsedMs)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledTimelineSnapshot?.totalHeight)} | ${formatMs(visibleTimelineDrift)} | ${formatMs(hiddenTimelineDrift)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.heightStabilityWorst?.visibleNonIgnoredChangedSlots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatNumber(m.hiddenRestoreHeightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.visibleNonIgnoredMaxAbsDeltaPx)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.runs[0]?.itemCount)} | ${formatNumber(row.runs[0]?.markdownItemCount)} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.restoreReady?.elapsedMs)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledTimelineSnapshot?.totalHeight)} | ${formatMs(visibleTimelineDrift)} | ${formatMs(hiddenTimelineDrift)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.heightStabilityWorst?.visibleNonIgnoredChangedSlots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatNumber(m.hiddenRestoreHeightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.visibleNonIgnoredMaxAbsDeltaPx)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
   }
   return lines.join('\n')
 }
@@ -1993,6 +2041,7 @@ async function main() {
       browserViewportWidth,
       browserViewportHeight,
       browserCpuThrottleRate,
+      browserDebugPerformance,
       rendererOptions: browserRendererOptions,
       finalTimelineMarkdownOptions: browserFinalTimelineMarkdownOptions,
       standaloneFinalRestoreAutoExpectedOptions: browserStandaloneFinalRestoreAutoExpectedOptions,

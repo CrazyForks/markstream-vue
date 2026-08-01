@@ -4,6 +4,7 @@ import { normalizeCustomHtmlTags } from '../customHtmlTags'
 import { NON_STRUCTURING_HTML_TAGS, STANDARD_BLOCK_HTML_TAGS, STANDARD_HTML_TAGS, VOID_HTML_TAGS } from '../htmlTags'
 import { escapeTagForRegExp, findTagCloseIndexOutsideQuotes, parseTagAttrs } from '../htmlTagUtils'
 import { isMathLike } from '../plugins/isMathLike'
+import { isCacheStableLinkValidator, readSyntheticLinkOrigin } from '../plugins/linkTokenMetadata'
 import {
   getTolerantMathBlockBoundaryStreamKey,
   hasMarkstreamMathPlugin,
@@ -115,6 +116,7 @@ interface StructuredStreamCacheEntry {
   nodes: ParsedNode[]
   stableGroupCount: number
   requireClosingStrong: boolean | undefined
+  validateLink: ParseOptions['validateLink']
 }
 
 interface StructuredStreamGroupBoundary {
@@ -138,6 +140,9 @@ const REUSABLE_INLINE_TOKEN_TYPES = new Set([
   'hardbreak',
   'ins_close',
   'ins_open',
+  'link',
+  'link_close',
+  'link_open',
   'mark_close',
   'mark_open',
   's_close',
@@ -225,17 +230,30 @@ function processTokensWithTiming(tokens: MarkdownToken[], options: ParseOptions 
   return result
 }
 
-function hasOnlyReusableInlineTokens(tokens: MarkdownToken[]): boolean {
+function hasOnlyReusableInlineTokens(tokens: MarkdownToken[], validateLink: ParseOptions['validateLink']): boolean {
   return tokens.every((token) => {
     if (!REUSABLE_INLINE_TOKEN_TYPES.has(token.type))
       return false
+    if (
+      (token.type === 'link' || token.type === 'link_open' || token.type === 'link_close')
+      && !isCacheStableLinkValidator(validateLink)
+    ) {
+      return false
+    }
+    if (token.type === 'link' && readSyntheticLinkOrigin(token) !== 'explicit')
+      return false
+    if ((token.type === 'link_open' || token.type === 'link_close') && token.markup !== '')
+      return false
 
     const children = token.children as MarkdownToken[] | null
-    return !Array.isArray(children) || hasOnlyReusableInlineTokens(children)
+    return !Array.isArray(children) || hasOnlyReusableInlineTokens(children, validateLink)
   })
 }
 
-function getReusableTopLevelTokenGroups(tokens: MarkdownToken[]): ReusableTopLevelTokenGroups | null {
+function getReusableTopLevelTokenGroups(
+  tokens: MarkdownToken[],
+  validateLink: ParseOptions['validateLink'],
+): ReusableTopLevelTokenGroups | null {
   const groupStarts: number[] = []
   let mixed = false
   let index = 0
@@ -288,7 +306,7 @@ function getReusableTopLevelTokenGroups(tokens: MarkdownToken[]): ReusableTopLev
       if (current.type !== 'inline')
         continue
       const children = current.children as MarkdownToken[] | null
-      if (!Array.isArray(children) || !hasOnlyReusableInlineTokens(children))
+      if (!Array.isArray(children) || !hasOnlyReusableInlineTokens(children, validateLink))
         return null
     }
 
@@ -347,6 +365,7 @@ function updateStructuredStreamCache(
       ? Math.max(0, groupStarts.length - 1)
       : sourceEndsWithBlankLine(source) ? groupStarts.length : Math.max(0, groupStarts.length - 1),
     requireClosingStrong: options.requireClosingStrong,
+    validateLink: options.validateLink,
   })
 }
 
@@ -381,12 +400,16 @@ function processTopLevelTokensWithReuse(
   timing: ParseTimingMetrics | undefined,
 ) {
   const owner = md as unknown as object
-  const groups = getReusableTopLevelTokenGroups(tokens)
-  const cacheable = shouldUseTopLevelStreamParse(md, options)
+  const reuseEnabled = shouldUseTopLevelStreamParse(md, options)
     && canReuseStructuredStreamNodes(options)
-    && groups !== null
 
-  if (!cacheable) {
+  if (!reuseEnabled) {
+    structuredStreamCache.delete(owner)
+    return processTokensWithTiming(tokens, options, timing)
+  }
+
+  const groups = getReusableTopLevelTokenGroups(tokens, options.validateLink)
+  if (!groups) {
     structuredStreamCache.delete(owner)
     return processTokensWithTiming(tokens, options, timing)
   }
@@ -401,6 +424,7 @@ function processTopLevelTokensWithReuse(
     previous
     && stableGroupCount > 0
     && previous.requireClosingStrong === options.requireClosingStrong
+    && previous.validateLink === options.validateLink
     && source.startsWith(previous.source)
     && groupStarts.length >= stableGroupCount
     && (mode === 'append' || mode === 'tail')
