@@ -1,6 +1,8 @@
 import type { MarkdownIt } from '../markdown-it-types'
 import type { MarkdownToken } from '../types'
+import type { SyntheticLinkOrigin } from './linkTokenMetadata'
 import { inferLinkifyDemotionContext, isDecodedFromRawPunycode, shouldDemoteFilenameLikeLinkify } from '../parser/linkifyHeuristics'
+import { setSyntheticLinkOrigin } from './linkTokenMetadata'
 
 // We hard-stop FULLWIDTH exclamation mark used as CJK punctuation.
 // ASCII `!` is valid in URLs (path/query/fragment), so do not stop on it.
@@ -13,22 +15,10 @@ type SyntheticLinkToken = MarkdownToken & {
   children?: MarkdownToken[] | null
 }
 
-type SyntheticLinkOrigin = 'autolink' | 'explicit' | 'linkify' | 'recovery'
-
 function getSyntheticLinkOrigin(markup: string | undefined): SyntheticLinkOrigin {
   if (markup === 'linkify' || markup === 'autolink')
     return markup
   return 'recovery'
-}
-
-function setSyntheticLinkOrigin<T extends SyntheticLinkToken>(token: T, origin: SyntheticLinkOrigin): T {
-  Object.defineProperty(token, 'meta', {
-    configurable: true,
-    enumerable: false,
-    value: { markstreamLinkOrigin: origin },
-    writable: true,
-  })
-  return token
 }
 
 // Small helpers to reduce repetition when building token fragments

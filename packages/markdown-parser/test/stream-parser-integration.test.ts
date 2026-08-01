@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getMarkdown, parseMarkdownToStructure } from '../src'
+import { readSyntheticLinkOrigin } from '../src/plugins/linkTokenMetadata'
 
 function buildLargeAppendFriendlyDoc(paragraphs: number) {
   return `${Array.from(
@@ -200,9 +201,52 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
   })
 
+  it('does not reuse linked prefixes when a validator changes behavior', () => {
+    const md = getMarkdown('stream-parser-mutable-validate-link')
+    const coldMd = getMarkdown('stream-parser-mutable-validate-link-cold')
+    let allowLinks = true
+    const validateLink = () => allowLinks
+    const base = `[external](https://example.com)\n\n${buildLargeAppendFriendlyDoc(40)}`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      validateLink,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+
+    allowLinks = false
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph.\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      validateLink,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+      validateLink,
+    }))
+    expect(second[0]).not.toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+  })
+
   it('reuses origin-tagged explicit synthetic links', () => {
+    const installCustomLinkMeta = (md: ReturnType<typeof getMarkdown>) => {
+      ;(md as any).core.ruler.after('fix_link_tokens', 'add_custom_synthetic_link_meta', (state: any) => {
+        for (const token of state.tokens?.flatMap((token: any) => token.children ?? []) ?? []) {
+          if (token.type === 'link')
+            token.meta = { customId: 'abc' }
+        }
+      })
+    }
     const md = getMarkdown('stream-parser-explicit-synthetic-link-reuse')
     const coldMd = getMarkdown('stream-parser-explicit-synthetic-link-reuse-cold')
+    installCustomLinkMeta(md)
+    installCustomLinkMeta(coldMd)
     const base = `${Array.from(
       { length: 40 },
       (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1}).`,
@@ -223,8 +267,12 @@ describe('parseMarkdownToStructure stream parser integration', () => {
       __timing: timing,
     } as any)
 
-    expect(synthetic?.meta?.markstreamLinkOrigin).toBe('explicit')
-    expect(Object.prototype.propertyIsEnumerable.call(synthetic, 'meta')).toBe(false)
+    expect(readSyntheticLinkOrigin(synthetic)).toBe('explicit')
+    expect(synthetic?.meta).toEqual({ customId: 'abc' })
+    expect(Object.prototype.propertyIsEnumerable.call(synthetic, 'meta')).toBe(true)
+    expect({ ...synthetic }.meta).toEqual({ customId: 'abc' })
+    expect(Object.assign({}, synthetic).meta).toEqual({ customId: 'abc' })
+    expect(JSON.stringify(synthetic)).toContain('"customId":"abc"')
     expect(JSON.stringify(synthetic)).not.toContain('markstreamLinkOrigin')
     expect(JSON.stringify(first)).not.toContain('markstreamLinkOrigin')
     expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
@@ -279,10 +327,49 @@ describe('parseMarkdownToStructure stream parser integration', () => {
 
     expect(synthetic).toMatchObject({
       type: 'link',
-      meta: { markstreamLinkOrigin: 'linkify' },
       href: 'https://example.com',
       loading: false,
     })
+    expect(readSyntheticLinkOrigin(synthetic)).toBe('linkify')
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+    }))
+    expect(second[0]).not.toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+  })
+
+  it('does not reuse link pairs with unknown markup', () => {
+    const installUnknownLinkMarkup = (md: ReturnType<typeof getMarkdown>) => {
+      ;(md as any).core.ruler.after('fix_link_tokens', 'test_unknown_link_markup', (state: any) => {
+        for (const token of state.tokens?.flatMap((token: any) => token.children ?? []) ?? []) {
+          if (token.type === 'link_open' || token.type === 'link_close')
+            token.markup = 'future-link'
+        }
+      })
+    }
+    const md = getMarkdown('stream-parser-unknown-link-markup')
+    const coldMd = getMarkdown('stream-parser-unknown-link-markup-cold')
+    installUnknownLinkMarkup(md)
+    installUnknownLinkMarkup(coldMd)
+    const base = `${Array.from(
+      { length: 40 },
+      (_, index) => `Paragraph ${index + 1} with [link ${index + 1}](/guide/${index + 1})`,
+    ).join('\n\n')}\n\n`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph.\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
     expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
       final: false,
       streamParse: false,
@@ -319,7 +406,7 @@ describe('parseMarkdownToStructure stream parser integration', () => {
         const inlineChildren = (md as any).stream.peek().flatMap((token: any) => token.children ?? [])
         const synthetic = inlineChildren.find((token: any) => token.type === 'link')
         expect(JSON.stringify(streamed)).toContain('"loading":true')
-        expect(synthetic?.meta?.markstreamLinkOrigin).toBe('linkify')
+        expect(readSyntheticLinkOrigin(synthetic)).toBe('linkify')
         expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
       }
     }

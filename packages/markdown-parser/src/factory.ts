@@ -10,6 +10,7 @@ import { applyFixLinkTokens } from './plugins/fixLinkTokens'
 import { applyFixListItem } from './plugins/fixListItem'
 import { applyFixStrongTokens } from './plugins/fixStrongTokens'
 import { applyFixTableTokens } from './plugins/fixTableTokens'
+import { registerCacheStableLinkValidator } from './plugins/linkTokenMetadata'
 import { applyMath } from './plugins/math'
 import { applyRenderRules } from './renderers'
 
@@ -199,8 +200,11 @@ export function factory(opts: FactoryOptions = {}): MarkdownItInstance {
     },
   }) as unknown as MarkdownItInstance
 
-  if (!hasCustomValidateLink)
-    md.set({ validateLink: (url: string) => !isUnsafeHtmlUrl(url, { tagName: 'a', attrName: 'href' }) })
+  if (!hasCustomValidateLink) {
+    const validateLink = (url: string) => !isUnsafeHtmlUrl(url, { tagName: 'a', attrName: 'href' })
+    registerCacheStableLinkValidator(validateLink)
+    md.set({ validateLink })
+  }
 
   applyInlineUrlValidation(md)
 
