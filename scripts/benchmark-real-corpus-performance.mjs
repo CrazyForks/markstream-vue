@@ -717,10 +717,14 @@ function resetParsePerformance() {
 }
 
 function readParsePerformance() {
+  if (!debugPerformance)
+    return null
   return JSON.parse(JSON.stringify(window.__realCorpusParsePerformance ?? createParsePerformance()))
 }
 
 function diffParsePerformance(after, before) {
+  if (!after || !before)
+    return null
   const result = createParsePerformance()
   for (const key of [
     'parseCommitCount',
@@ -1830,6 +1834,14 @@ function formatNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value)) : '-'
 }
 
+function formatDiagnosticMs(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : 'N/A'
+}
+
+function formatDiagnosticNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value)) : 'N/A'
+}
+
 function formatPercent(value) {
   return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '-'
 }
@@ -1861,7 +1873,7 @@ function renderBrowserRestoreTable(rows) {
   ]
   for (const row of rows) {
     const m = row.median
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.settledSnapshot?.slots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.nonIgnoredMaxAbsDeltaPx)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.settledSnapshot?.slots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.nonIgnoredMaxAbsDeltaPx)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
   }
   return lines.join('\n')
 }
@@ -1873,7 +1885,7 @@ function renderBrowserStreamTable(rows) {
   ]
   for (const row of rows) {
     const m = row.median
-    lines.push(`| ${row.id} | ${row.bytes} | ${row.runs[0]?.chunks ?? '-'} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.p95UpdateMs)} | ${formatMs(m.maxUpdateMs)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatNumber(m.heightJumps)} | ${formatNumber(m.observers?.mutationCount)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatNumber(m.parsePerformance?.processTokensReusedTopLevelNodes)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${row.runs[0]?.chunks ?? '-'} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.p95UpdateMs)} | ${formatMs(m.maxUpdateMs)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatNumber(m.heightJumps)} | ${formatNumber(m.observers?.mutationCount)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticNumber(m.parsePerformance?.processTokensReusedTopLevelNodes)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} |`)
   }
   return lines.join('\n')
 }
@@ -1893,7 +1905,7 @@ function renderBrowserChatRestoreTable(rows) {
       Number(m.firstTimelineSnapshot?.scrollHeight ?? 0)
       - Number(m.settledTimelineSnapshot?.scrollHeight ?? 0),
     )
-    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.runs[0]?.itemCount)} | ${formatNumber(row.runs[0]?.markdownItemCount)} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.restoreReady?.elapsedMs)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledTimelineSnapshot?.totalHeight)} | ${formatMs(visibleTimelineDrift)} | ${formatMs(hiddenTimelineDrift)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.heightStabilityWorst?.visibleNonIgnoredChangedSlots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatNumber(m.hiddenRestoreHeightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.visibleNonIgnoredMaxAbsDeltaPx)} | ${formatMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatMs(m.parsePerformance?.nodeReuseMs)} | ${formatMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
+    lines.push(`| ${row.id} | ${row.bytes} | ${formatNumber(row.runs[0]?.itemCount)} | ${formatNumber(row.runs[0]?.markdownItemCount)} | ${formatMs(m.totalMs)} | ${formatBoolean(m.runTimedOut)} | ${formatMs(m.restoreReady?.elapsedMs)} | ${formatMs(m.taskDurationMs)} | ${formatMs(m.scriptDurationMs)} | ${formatMs(m.layoutDurationMs)} | ${formatMs(m.observers?.longTaskTotalMs)} | ${formatPercent(m.observers?.longTaskBusyRatio)} | ${formatMs(m.observers?.frameP95Ms)} | ${formatMs(m.observers?.frameMaxMs)} | ${formatNumber(m.observers?.droppedFrameEstimate)} | ${formatNumber(m.settledTimelineSnapshot?.totalHeight)} | ${formatMs(visibleTimelineDrift)} | ${formatMs(hiddenTimelineDrift)} | ${formatNumber(m.settledSnapshot?.domNodes)} | ${formatNumber(m.heightStabilityWorst?.visibleNonIgnoredChangedSlots)} | ${formatNumber(m.heightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatNumber(m.hiddenRestoreHeightStabilityWorst?.nonIgnoredChangedSlots)} | ${formatMs(m.heightStabilityWorst?.visibleNonIgnoredMaxAbsDeltaPx)} | ${formatDiagnosticMs(m.parsePerformance?.parseMarkdownToStructureTotalMs)} | ${formatDiagnosticMs(m.parsePerformance?.nodeReuseMs)} | ${formatDiagnosticMs(m.parsePerformance?.signatureMs)} | ${m.observers?.cls ?? '-'} |`)
   }
   return lines.join('\n')
 }

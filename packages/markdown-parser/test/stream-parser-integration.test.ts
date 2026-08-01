@@ -169,6 +169,37 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(second[39]).toBe(first[39])
   })
 
+  it('invalidates structured reuse when the effective link validator changes', () => {
+    const md = getMarkdown('stream-parser-validate-link-invalidation')
+    const coldMd = getMarkdown('stream-parser-validate-link-invalidation-cold')
+    const allowLinks = () => true
+    const denyLinks = () => false
+    const base = `[external](https://example.com)\n\n${buildLargeAppendFriendlyDoc(40)}`
+    const first = parseMarkdownToStructure(base, md, {
+      final: false,
+      streamParse: true,
+      validateLink: allowLinks,
+      __reuseStableTopLevelNodes: true,
+    } as any)
+    const timing: { processTokensReusedTopLevelNodes?: number } = {}
+    const source = `${base}Appended paragraph.\n\n`
+    const second = parseMarkdownToStructure(source, md, {
+      final: false,
+      streamParse: true,
+      validateLink: denyLinks,
+      __reuseStableTopLevelNodes: true,
+      __timing: timing,
+    } as any)
+
+    expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
+      final: false,
+      streamParse: false,
+      validateLink: denyLinks,
+    }))
+    expect(second[0]).not.toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+  })
+
   it('reuses origin-tagged explicit synthetic links', () => {
     const md = getMarkdown('stream-parser-explicit-synthetic-link-reuse')
     const coldMd = getMarkdown('stream-parser-explicit-synthetic-link-reuse-cold')
@@ -193,6 +224,8 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     } as any)
 
     expect(synthetic?.meta?.markstreamLinkOrigin).toBe('explicit')
+    expect(Object.prototype.propertyIsEnumerable.call(synthetic, 'meta')).toBe(false)
+    expect(JSON.stringify(synthetic)).not.toContain('markstreamLinkOrigin')
     expect(JSON.stringify(first)).not.toContain('markstreamLinkOrigin')
     expect(second).toEqual(parseMarkdownToStructure(source, coldMd, {
       final: false,

@@ -115,6 +115,7 @@ interface StructuredStreamCacheEntry {
   nodes: ParsedNode[]
   stableGroupCount: number
   requireClosingStrong: boolean | undefined
+  validateLink: ParseOptions['validateLink']
 }
 
 interface StructuredStreamGroupBoundary {
@@ -354,6 +355,7 @@ function updateStructuredStreamCache(
       ? Math.max(0, groupStarts.length - 1)
       : sourceEndsWithBlankLine(source) ? groupStarts.length : Math.max(0, groupStarts.length - 1),
     requireClosingStrong: options.requireClosingStrong,
+    validateLink: options.validateLink,
   })
 }
 
@@ -412,6 +414,7 @@ function processTopLevelTokensWithReuse(
     previous
     && stableGroupCount > 0
     && previous.requireClosingStrong === options.requireClosingStrong
+    && previous.validateLink === options.validateLink
     && source.startsWith(previous.source)
     && groupStarts.length >= stableGroupCount
     && (mode === 'append' || mode === 'tail')
