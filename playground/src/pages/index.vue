@@ -897,6 +897,12 @@ onBeforeUnmount(() => {
               <strong class="chat-overview__stat-value">{{ normalizedBurstiness }}%</strong>
             </div>
           </div>
+
+          <img
+            src="/markstream-hero.webp"
+            alt="markstream-vue streaming Markdown illustration"
+            class="chat-overview__visual"
+          >
         </section>
 
         <!-- Messages area -->
@@ -1377,12 +1383,23 @@ onBeforeUnmount(() => {
 /* ─── Chat Overview ─── */
 .chat-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 112px;
   gap: 14px;
   padding: 16px 20px;
   border-bottom: 1px solid hsl(var(--ms-border) / 0.34);
   background:
     linear-gradient(180deg, hsl(var(--ms-background) / 0.46), hsl(var(--ms-background) / 0.18));
+}
+
+.chat-overview__visual {
+  width: 112px;
+  aspect-ratio: 1;
+  align-self: center;
+  justify-self: end;
+  object-fit: cover;
+  border: 1px solid hsl(var(--ms-border) / 0.52);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgb(15 118 110 / 0.16);
 }
 
 .chat-overview__intro {
@@ -1539,6 +1556,7 @@ onBeforeUnmount(() => {
   .chat-header__nav { gap: 4px; }
   .chat-overview { grid-template-columns: 1fr; padding: 14px 16px; }
   .chat-overview__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chat-overview__visual { width: 96px; justify-self: start; }
   .nav-btn { padding: 5px 8px; font-size: 0.72rem; border-radius: 8px; }
   .nav-btn__text { display: none; }
   .nav-btn__icon { width: 16px; height: 16px; }

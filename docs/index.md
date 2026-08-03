@@ -18,6 +18,9 @@ hero:
   name: Markstream
   text: Streaming Markdown renderers for AI apps
   tagline: Vue • React • Svelte • Angular • Nuxt • Next.js
+  image:
+    src: /markstream-hero.webp
+    alt: markstream-vue streaming Markdown playground illustration
   actions:
     - theme: brand
       text: Choose your framework

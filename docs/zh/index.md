@@ -18,6 +18,9 @@ hero:
   name: Markstream
   text: 面向 AI 应用的流式 Markdown 渲染器
   tagline: Vue • React • Svelte • Angular • Nuxt • Next.js
+  image:
+    src: /markstream-hero.webp
+    alt: markstream-vue 流式 Markdown playground 插画
   actions:
     - theme: brand
       text: 选择框架
