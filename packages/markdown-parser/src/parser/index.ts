@@ -509,7 +509,7 @@ function processTopLevelTokensWithReuse(
       __linkifyDemotionSeed: previous.nodes
         .slice(0, stableGroupCount)
         .map(node => String((node as Record<string, unknown>).raw ?? '')),
-    }, timing)
+    } as InternalParseOptions, timing)
     const expectedTailNodes = groupStarts.length - stableGroupCount
 
     if (tailNodes.length === expectedTailNodes) {
@@ -1668,7 +1668,7 @@ function shouldCloneTopLevelStreamTokens(options: ParseOptions) {
     || typeof options.postTransformTokens === 'function'
 }
 
-function sameTokenMap(left: Token | undefined, right: Token | undefined) {
+function sameTokenMap(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   const leftMap = left?.map
   const rightMap = right?.map
 
@@ -1682,7 +1682,7 @@ function sameTokenMap(left: Token | undefined, right: Token | undefined) {
     && leftMap.every((value, index) => value === rightMap[index])
 }
 
-function sameTokenAttrs(left: Token | undefined, right: Token | undefined) {
+function sameTokenAttrs(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   const leftAttrs = left?.attrs
   const rightAttrs = right?.attrs
 
@@ -1705,7 +1705,7 @@ function sameTokenAttrs(left: Token | undefined, right: Token | undefined) {
   return true
 }
 
-function isSameTokenShapeForReuse(left: Token | undefined, right: Token | undefined) {
+function isSameTokenShapeForReuse(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   return !!left
     && !!right
     && left.type === right.type
