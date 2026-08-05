@@ -99,14 +99,27 @@ const pendingExplicitMathTailCache = new WeakMap<object, {
   state: ExplicitBracketMathStreamState
 }>()
 
-const TOLERANT_BOUNDARY_SPLIT_OPENERS = ['$$', '\\[']
+const TOLERANT_BOUNDARY_SPLIT_OPENERS = ['$', '\\[']
 const STREAMING_ADMONITION_OPEN_RE = /(^|\r?\n)[\t ]*:::[\t ]*(?:warning|info|note|tip|danger|caution|error)(?=[\t ]|\r?\n|$)[^\r\n]*(?:\r?\n[\t ]*)*$/
+const SAFE_MARKDOWN_WINDOW_MARGIN = 1024
+const SAFE_MARKDOWN_WINDOW_OVERLAP = 16
+const safeMarkdownCache = new WeakMap<object, {
+  source: string
+  safeMarkdown: string
+  mode: string
+}>()
 
 interface ParseTimingMetrics {
   tokenCloneMs?: number
   processTokensInputTokens?: number
   processTokensReusedTopLevelNodes?: number
   processTokensMs?: number
+  /** Wall time of the streaming-safe markdown pre-processing chain. */
+  safeMarkdownMs?: number
+  /** Wall time of markdown-it tokenization (stream or sync). */
+  tokenizeMs?: number
+  /** Wall time of the top-level html_block merge/combine/structure passes. */
+  htmlBlockPassesMs?: number
   parseMarkdownToStructureTotalMs?: number
 }
 
@@ -3943,23 +3956,13 @@ function ensureBlankLineBeforeCustomHtmlBlocks(markdown: string, tags: string[])
   return out
 }
 
-export function parseMarkdownToStructure(
-  markdown: string,
+function transformStreamingSafeMarkdown(
+  source: string,
+  isFinal: boolean,
   md: MarkdownIt,
-  options: ParseOptions = {},
-): ParsedNode[] {
-  const timing = getParseTiming(options)
-  const parseStartedAt = timing ? getParserNow() : 0
-  const isFinal = !!options.final
-  // Ensure markdown is a string — guard against null/undefined inputs from callers
-  // todo: 下面的特殊 math 其实应该更精确匹配到() 或者 $$ $$ 或者 \[ \] 内部的内容
-  const sourceMarkdown = (markdown ?? '').toString()
-  let safeMarkdown = sourceMarkdown.replace(/([^\\])\r(ight|ho)/g, '$1\\r$2').replace(/([^\\])\r?\n(abla|eq|ot|exists)/g, '$1\\n$2')
-
-  if (shouldResetTopLevelStreamCacheForFinalAutoParse(md, options)) {
-    md.stream!.reset!()
-    clearTolerantMathBoundaryStreamCache(md)
-  }
+  options: ParseOptions,
+) {
+  let safeMarkdown = source.replace(/([^\\])\r(ight|ho)/g, '$1\\r$2').replace(/([^\\])\r?\n(abla|eq|ot|exists)/g, '$1\\n$2')
 
   if (!isFinal) {
     if (safeMarkdown.endsWith('- *')) {
@@ -4023,7 +4026,8 @@ export function parseMarkdownToStructure(
       safeMarkdown = safeMarkdown.replace(/(\n\[|\n\()+\n*$/g, '\n')
     }
 
-    safeMarkdown = stripPendingExplicitMathTail(safeMarkdown, md)
+    // The tolerant-math boundary scan is applied by the caller to the full
+    // document (it carries incremental fence/math state across commits).
     safeMarkdown = getStreamingAdmonitionOpenTailReplacement(safeMarkdown, options.customHtmlTags) ?? safeMarkdown
   }
 
@@ -4080,6 +4084,70 @@ export function parseMarkdownToStructure(
   if (!isFinal)
     safeMarkdown = stripDanglingHtmlLikeTail(safeMarkdown)
 
+  return safeMarkdown
+}
+
+function getSafeMarkdown(md: MarkdownIt, sourceMarkdown: string, isFinal: boolean, options: ParseOptions) {
+  const owner = md as unknown as object
+  const mode = `${isFinal ? 'final' : 'stream'}:${(options.customHtmlTags ?? []).join(',')}`
+  const previous = safeMarkdownCache.get(owner)
+
+  let safeMarkdown: string
+  if (
+    // Append-only streaming fast path: only the appended tail can introduce
+    // new mid-state markers, and the prefix of the previous safe markdown was
+    // already transformed identically. Process a tail window of the RAW
+    // source (with a small overlap for the `\r`-fix boundary) and stitch it
+    // onto the untouched prefix, avoiding O(doc) regex scans on every commit
+    // (quadratic total for long streaming documents).
+    !isFinal
+    && !options.customHtmlTags?.length
+    && previous
+    && previous.mode === mode
+    && sourceMarkdown.length >= previous.source.length
+    && sourceMarkdown.startsWith(previous.source)
+  ) {
+    const prefixCut = Math.max(0, previous.safeMarkdown.length - SAFE_MARKDOWN_WINDOW_MARGIN - SAFE_MARKDOWN_WINDOW_OVERLAP)
+    const window = sourceMarkdown.slice(prefixCut)
+    const transformed = transformStreamingSafeMarkdown(window, isFinal, md, options)
+    safeMarkdown = `${previous.safeMarkdown.slice(0, prefixCut)}${transformed}`
+  }
+  else {
+    safeMarkdown = transformStreamingSafeMarkdown(sourceMarkdown, isFinal, md, options)
+  }
+
+  // The tolerant-math boundary scan carries incremental fence/math state in
+  // its own cache keyed by md, so it must always run on the full document
+  // (not a tail window) — otherwise pre-window math openers would be
+  // invisible and ambiguous tails would not be hidden.
+  if (!isFinal)
+    safeMarkdown = stripPendingExplicitMathTail(safeMarkdown, md)
+
+  safeMarkdownCache.set(owner, { source: sourceMarkdown, safeMarkdown, mode })
+  return safeMarkdown
+}
+
+export function parseMarkdownToStructure(
+  markdown: string,
+  md: MarkdownIt,
+  options: ParseOptions = {},
+): ParsedNode[] {
+  const timing = getParseTiming(options)
+  const parseStartedAt = timing ? getParserNow() : 0
+  const isFinal = !!options.final
+  // Ensure markdown is a string — guard against null/undefined inputs from callers
+  // todo: 下面的特殊 math 其实应该更精确匹配到() 或者 $ $ 或者 \[ \] 内部的内容
+  const sourceMarkdown = (markdown ?? '').toString()
+  if (shouldResetTopLevelStreamCacheForFinalAutoParse(md, options)) {
+    md.stream!.reset!()
+    clearTolerantMathBoundaryStreamCache(md)
+  }
+
+  const safeMarkdown = getSafeMarkdown(md, sourceMarkdown, isFinal, options)
+
+  if (timing)
+    addTiming(timing, 'safeMarkdownMs', getParserNow() - parseStartedAt)
+
   const standaloneHtmlDocument = parseStandaloneHtmlDocument(safeMarkdown)
   if (standaloneHtmlDocument) {
     if (options.includeSourceMap) {
@@ -4104,7 +4172,10 @@ export function parseMarkdownToStructure(
   }
 
   // Get tokens from markdown-it
+  const tokenizeStartedAt = timing ? getParserNow() : 0
   const tokens = parseTopLevelTokens(md, safeMarkdown, { __markstreamFinal: isFinal }, options)
+  if (timing)
+    addTiming(timing, 'tokenizeMs', getParserNow() - tokenizeStartedAt)
   // Defensive: ensure tokens is an array
   if (!tokens || !Array.isArray(tokens))
     return finishParsedNodes([], options, timing, parseStartedAt)
@@ -4173,9 +4244,12 @@ export function parseMarkdownToStructure(
   }
 
   if (hasTopLevelHtmlBlock(result)) {
+    const htmlPassesStartedAt = timing ? getParserNow() : 0
     result = mergeSplitTopLevelHtmlBlocks(result, isFinal, safeMarkdown, internalOptions)
     result = combineStructuredDetailsHtmlBlocks(result, safeMarkdown, md, internalOptions, isFinal)[0]
     result = structureGenericHtmlBlockChildren(result, md, internalOptions, isFinal)
+    if (timing)
+      addTiming(timing, 'htmlBlockPassesMs', getParserNow() - htmlPassesStartedAt)
   }
 
   if (isFinal) {

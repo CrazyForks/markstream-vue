@@ -33,6 +33,9 @@ interface ParserTimingMetrics {
   processTokensInputTokens?: number
   processTokensReusedTopLevelNodes?: number
   processTokensMs?: number
+  safeMarkdownMs?: number
+  tokenizeMs?: number
+  htmlBlockPassesMs?: number
   parseMarkdownToStructureTotalMs?: number
 }
 
@@ -132,6 +135,9 @@ const PARSE_TIMING_KEYS: Array<keyof ParserTimingMetrics> = [
   'processTokensInputTokens',
   'processTokensReusedTopLevelNodes',
   'processTokensMs',
+  'safeMarkdownMs',
+  'tokenizeMs',
+  'htmlBlockPassesMs',
   'parseMarkdownToStructureTotalMs',
 ]
 const STRUCTURAL_OBJECT_FIELDS = new Set([
