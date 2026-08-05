@@ -138,6 +138,9 @@ const REUSABLE_INLINE_TOKEN_TYPES = new Set([
   'em_open',
   'emoji',
   'hardbreak',
+  'html_block',
+  'html_inline',
+  'image',
   'ins_close',
   'ins_open',
   'link',
@@ -145,6 +148,7 @@ const REUSABLE_INLINE_TOKEN_TYPES = new Set([
   'link_open',
   'mark_close',
   'mark_open',
+  'math_inline',
   's_close',
   's_open',
   'softbreak',
@@ -166,6 +170,7 @@ const REUSABLE_TOP_LEVEL_SINGLE_TOKEN_TYPES = new Set([
   'code_block',
   'fence',
   'hr',
+  'inline',
   'math_block',
 ])
 
@@ -240,14 +245,43 @@ function hasOnlyReusableInlineTokens(tokens: MarkdownToken[], validateLink: Pars
     ) {
       return false
     }
-    if (token.type === 'link' && readSyntheticLinkOrigin(token) !== 'explicit')
-      return false
-    if ((token.type === 'link_open' || token.type === 'link_close') && token.markup !== '')
-      return false
+    if (token.type === 'link') {
+      // fixLinkTokens emits `link` single tokens with a recorded origin.
+      // explicit/linkify/autolink origins produce nodes deterministically
+      // from the token + its inline group (recovery paths are group-local);
+      // `recovery` tokens are emitted for broken streaming link tails and
+      // stay excluded.
+      const origin = readSyntheticLinkOrigin(token)
+      if (origin !== 'explicit' && origin !== 'linkify' && origin !== 'autolink')
+        return false
+    }
+    if (token.type === 'link_open' || token.type === 'link_close') {
+      // Explicit links carry an empty markup. markdown-it linkify emits
+      // `link_open`/`link_close` pairs with markup `linkify`/`autolink`;
+      // their node output is deterministic given the token, and the tail
+      // re-parse seeds the linkify demotion tracker with the reused prefix
+      // context, so these pairs are safe to reuse.
+      const markup = token.markup ?? ''
+      if (markup !== '' && markup !== 'linkify' && markup !== 'autolink')
+        return false
+    }
 
     const children = token.children as MarkdownToken[] | null
     return !Array.isArray(children) || hasOnlyReusableInlineTokens(children, validateLink)
   })
+}
+
+function getReusableTopLevelPairedCloseType(tokenType: string) {
+  const known = REUSABLE_TOP_LEVEL_PAIRED_TOKEN_TYPES.get(tokenType)
+  if (known)
+    return known
+
+  // markdown-it-container emits `container_<kind>_open` / `container_<kind>_close`
+  // at level 0 for every registered container name. The node output is a pure
+  // function of the token pair (attrs/info + children), so these groups are as
+  // reusable as the statically known pairs.
+  const containerMatch = /^container_(.+)_open$/.exec(tokenType)
+  return containerMatch ? `container_${containerMatch[1]}_close` : undefined
 }
 
 function getReusableTopLevelTokenGroups(
@@ -263,7 +297,7 @@ function getReusableTopLevelTokenGroups(
     if (!token || token.level !== 0)
       return null
 
-    const closeType = REUSABLE_TOP_LEVEL_PAIRED_TOKEN_TYPES.get(token.type)
+    const closeType = getReusableTopLevelPairedCloseType(token.type)
     let groupEnd = index + 1
 
     if (closeType) {
@@ -375,16 +409,31 @@ function hasStableStructuredStreamGroupBoundaries(
   groupStarts: number[],
   stableGroupCount: number,
 ) {
+  const lastGroupIndex = groupStarts.length - 1
   for (let index = 0; index < stableGroupCount; index++) {
     const start = groupStarts[index]
     const end = groupStarts[index + 1] ?? tokens.length
     const boundary = previous.groupBoundaries[index]
     if (
       !boundary
-      || boundary.firstToken !== tokens[start]
-      || boundary.lastToken !== tokens[end - 1]
       || boundary.tokenCount !== end - start
     ) {
+      return false
+    }
+    const identical = boundary.firstToken === tokens[start]
+      && boundary.lastToken === tokens[end - 1]
+    if (identical)
+      continue
+    // The stream parser can recreate prefix tokens on a full re-parse or a
+    // container tail merge. A deterministic re-parse of unchanged source
+    // produces shape-equal tokens, so boundary shape equality proves the
+    // group content is unchanged — EXCEPT for the last group, which may
+    // legitimately gain new content while its boundary tokens keep the same
+    // shape (e.g. a tail merge that recreates the open/close pair). Interior
+    // groups can never receive appended content, so shape fallback is safe
+    // only below the last group.
+    if (index >= lastGroupIndex || !isSameTokenShapeForReuse(boundary.firstToken, tokens[start])
+      || !isSameTokenShapeForReuse(boundary.lastToken, tokens[end - 1])) {
       return false
     }
   }
@@ -400,13 +449,21 @@ function processTopLevelTokensWithReuse(
   timing: ParseTimingMetrics | undefined,
 ) {
   const owner = md as unknown as object
+  const structuredReuseDisabled = (options as InternalParseOptions).__disableStructuredReuse === true
   const reuseEnabled = shouldUseTopLevelStreamParse(md, options)
     && canReuseStructuredStreamNodes(options)
 
   if (!reuseEnabled) {
-    structuredStreamCache.delete(owner)
+    // Fragment parses (e.g. children of <details>/custom html blocks) run with
+    // the same md instance and must not evict the top-level document's
+    // structured reuse cache.
+    if (!structuredReuseDisabled)
+      structuredStreamCache.delete(owner)
     return processTokensWithTiming(tokens, options, timing)
   }
+
+  if (structuredReuseDisabled)
+    return processTokensWithTiming(tokens, options, timing)
 
   const groups = getReusableTopLevelTokenGroups(tokens, options.validateLink)
   if (!groups) {
@@ -431,7 +488,15 @@ function processTopLevelTokensWithReuse(
     && hasStableStructuredStreamGroupBoundaries(previous, tokens, groupStarts, stableGroupCount)
   ) {
     const tailStart = groupStarts[stableGroupCount] ?? tokens.length
-    const tailNodes = processTokensWithTiming(tokens.slice(tailStart), options, timing)
+    const tailNodes = processTokensWithTiming(tokens.slice(tailStart), {
+      ...options,
+      // Replay the reused prefix node raws into the tail's linkify demotion
+      // tracker so tail linkify decisions see the same accumulated context a
+      // full parse would have produced.
+      __linkifyDemotionSeed: previous.nodes
+        .slice(0, stableGroupCount)
+        .map(node => String((node as Record<string, unknown>).raw ?? '')),
+    }, timing)
     const expectedTailNodes = groupStarts.length - stableGroupCount
 
     if (tailNodes.length === expectedTailNodes) {
@@ -1604,6 +1669,42 @@ function sameTokenMap(left: Token | undefined, right: Token | undefined) {
     && leftMap.every((value, index) => value === rightMap[index])
 }
 
+function sameTokenAttrs(left: Token | undefined, right: Token | undefined) {
+  const leftAttrs = left?.attrs
+  const rightAttrs = right?.attrs
+
+  if (leftAttrs === rightAttrs)
+    return true
+
+  if (!Array.isArray(leftAttrs) || !Array.isArray(rightAttrs))
+    return false
+
+  if (leftAttrs.length !== rightAttrs.length)
+    return false
+
+  for (let index = 0; index < leftAttrs.length; index++) {
+    const leftAttr = leftAttrs[index]
+    const rightAttr = rightAttrs[index]
+    if (leftAttr[0] !== rightAttr[0] || leftAttr[1] !== rightAttr[1])
+      return false
+  }
+
+  return true
+}
+
+function isSameTokenShapeForReuse(left: Token | undefined, right: Token | undefined) {
+  return !!left
+    && !!right
+    && left.type === right.type
+    && left.tag === right.tag
+    && left.nesting === right.nesting
+    && left.markup === right.markup
+    && left.content === right.content
+    && left.info === right.info
+    && sameTokenMap(left, right)
+    && sameTokenAttrs(left, right)
+}
+
 function isSameTokenShape(left: Token | undefined, right: Token | undefined) {
   return !!left
     && !!right
@@ -2298,6 +2399,7 @@ function parseDetailsFragmentChildren(
   const internalOptions: InternalParseOptions = {
     ...(options as InternalParseOptions),
     __disableStreamParse: true,
+    __disableStructuredReuse: true,
   }
 
   return parseMarkdownToStructure(fragment, md, internalOptions)
@@ -4118,6 +4220,11 @@ export function processTokens(tokens: MarkdownToken[], options?: ParseOptions): 
 
   const result: ParsedNode[] = []
   const linkifyContext = createLinkifyDemotionContextTracker(options)
+  const seedRaws = (options as InternalParseOptions | undefined)?.__linkifyDemotionSeed
+  if (Array.isArray(seedRaws) && seedRaws.length) {
+    for (const raw of seedRaws)
+      linkifyContext.remember(String(raw ?? ''))
+  }
   const includeSourceMap = options?.includeSourceMap === true
   let i = 0
   // Note: table token normalization is applied during markdown-it parsing

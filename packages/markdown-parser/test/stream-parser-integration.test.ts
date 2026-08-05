@@ -335,8 +335,10 @@ describe('parseMarkdownToStructure stream parser integration', () => {
       final: false,
       streamParse: false,
     }))
-    expect(second[0]).not.toBe(first[0])
-    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+    // Linkify-derived `link` single tokens produce deterministic nodes from
+    // their inline group, so stable prefixes containing them are reusable.
+    expect(second[0]).toBe(first[0])
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(41)
   })
 
   it('does not reuse link pairs with unknown markup', () => {
@@ -611,8 +613,11 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     expect(streamed).toEqual(cold)
     expect(streamed.find(node => node.raw === 'foo.md')?.children?.[0]?.type).toBe('text')
     expect(streamed.find(node => node.raw === 'bar.md')?.children?.[0]?.type).toBe('text')
-    expect(timing.processTokensInputTokens).toBe((md as any).stream.peek().length)
-    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+    // The tail's linkify demotion tracker is seeded with the reused prefix
+    // node raws, so cross-block demotion context (Files:) is preserved while
+    // the stable prefix is still reused.
+    expect(timing.processTokensInputTokens).toBeLessThan((md as any).stream.peek().length)
+    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBeGreaterThan(0)
   })
 
   it('keeps a parenthesized bare link stable when its closing punctuation arrives', () => {
@@ -770,7 +775,7 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     ['image', '![alt](https://example.com/image.png)\n\n'],
     ['html', '<div>raw</div>\n\n'],
     ['reference', '[ref]: https://example.com\n'],
-  ])('falls back to full node processing when appended content contains a %s', (kind, appended) => {
+  ])('handles appended content containing a %s consistently with a cold parse', (kind, appended) => {
     const md = getMarkdown(`stream-parser-structured-tail-${kind}-fallback`)
     const base = buildLargeAppendFriendlyDoc(40)
 
@@ -798,8 +803,15 @@ describe('parseMarkdownToStructure stream parser integration', () => {
     )
 
     expect(streamed).toEqual(cold)
-    expect(timing.processTokensInputTokens).toBe((md as any).stream.peek().length)
-    expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+    if (kind === 'image') {
+      // Images are deterministic per inline group; the stable prefix stays reusable.
+      expect(timing.processTokensReusedTopLevelNodes ?? 0).toBeGreaterThan(0)
+      expect(timing.processTokensInputTokens).toBeLessThan((md as any).stream.peek().length)
+    }
+    else {
+      expect(timing.processTokensInputTokens).toBe((md as any).stream.peek().length)
+      expect(timing.processTokensReusedTopLevelNodes ?? 0).toBe(0)
+    }
     if (kind === 'reference')
       expect(getStreamStats(md).lastMode).toBe('full')
   })
