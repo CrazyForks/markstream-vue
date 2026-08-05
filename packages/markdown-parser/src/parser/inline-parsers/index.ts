@@ -1311,15 +1311,22 @@ export function parseInlineTokens(
     const textNode = parseTextToken({ ...token, content })
 
     if (currentTextNode) {
-      // Merge with the previous text node
-      currentTextNode.content += stripTrailingMidStateMarker(textNode.content, token, markerFlags)
+      // Merge with the previous text node. The mid-state marker strip only
+      // applies to streaming tails; final parses must keep real trailing
+      // characters (`(`, `*`, `\`) intact.
+      currentTextNode.content += options?.final
+        ? textNode.content
+        : stripTrailingMidStateMarker(textNode.content, token, markerFlags)
       currentTextNode.raw += textNode.raw
       return
     }
 
     const maybeMath = preToken?.tag === 'br' && tokens[i - 2]?.content === '['
-    if (!nextToken)
-      textNode.content = stripTrailingMidStateMarker(textNode.content, token, markerFlags)
+    if (!nextToken) {
+      textNode.content = options?.final
+        ? textNode.content
+        : stripTrailingMidStateMarker(textNode.content, token, markerFlags)
+    }
 
     currentTextNode = textNode
     currentTextNode.center = maybeMath
@@ -1391,7 +1398,7 @@ export function parseInlineTokens(
       i++
       return
     }
-    if (!nextToken && (markerFlags & INLINE_TEXT_MARKER_OPEN_PAREN) !== 0 && /[^\]]\s*\(\s*$/.test(content))
+    if (!nextToken && options?.final !== true && (markerFlags & INLINE_TEXT_MARKER_OPEN_PAREN) !== 0 && /[^\]]\s*\(\s*$/.test(content))
       content = content.replace(/\(\s*$/, '')
     if (!content) {
       i++
