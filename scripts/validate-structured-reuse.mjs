@@ -20,7 +20,7 @@ const parser = await import(pathToFileURL(parserDistPath).href)
 const { getMarkdown, parseMarkdownToStructure } = parser
 
 const CORPORA = {
-  changelog: 'CHANGELOG.md',
+  'changelog': 'CHANGELOG.md',
   'readme-en': 'README.md',
   'readme-zh': 'README.zh-CN.md',
   'docs-performance': 'docs/guide/performance.md',
