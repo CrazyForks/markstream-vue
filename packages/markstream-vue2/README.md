@@ -327,7 +327,7 @@ module.exports = {
 ## Notes
 
 - The Vue 2 package is a compatibility port for legacy Vue 2 apps and mirrors the Vue 3 renderer feature set where practical (virtualization, streaming code blocks, Monaco, Mermaid, KaTeX, tooltip singleton).
-- Optional peers are still required for those features (`stream-monaco`, `stream-markdown`, `mermaid`, `katex`, etc.).
+- Optional peers are still required for those features (`stream-diffs` for the recommended enhanced code blocks, `stream-monaco` as a fallback for legacy Monaco rendering, `stream-markdown`, `mermaid`, `katex`, etc.).
 - Custom node components are supported via `setCustomComponents` from `markstream-vue2`.
 - If you only render short static Markdown, a smaller Vue 2 Markdown component may be a simpler fit.
 

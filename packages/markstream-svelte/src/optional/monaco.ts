@@ -79,18 +79,34 @@ export async function getUseMonaco(): Promise<MonacoRuntimeModule | null> {
     return null
 
   pendingImport = (async () => {
-    try {
-      const imported: any = await import('stream-monaco')
-      monacoModule = imported?.default ?? imported
-      await preloadWorkers(monacoModule)
-      codeBlockRuntimeReady = true
-      void warmupShikiTokenizer(monacoModule)
-      return monacoModule
+    // Prefer `stream-diffs`: smaller runtime without the heavy
+    // `monaco-editor` dependency. `stream-monaco` remains supported as a
+    // fallback for consumers who install it.
+    const candidates = [
+      async () => (await import('stream-diffs')) as any,
+      async () => (await import('stream-monaco')) as any,
+    ]
+
+    for (const load of candidates) {
+      try {
+        const candidate = await load()
+        const resolved = candidate?.default ?? candidate
+        if (typeof resolved?.useMonaco !== 'function')
+          continue
+        monacoModule = resolved
+        await preloadWorkers(monacoModule)
+        codeBlockRuntimeReady = true
+        if (typeof monacoModule?.getOrCreateHighlighter === 'function')
+          void warmupShikiTokenizer(monacoModule)
+        return monacoModule
+      }
+      catch {
+        // Try the next candidate runtime.
+      }
     }
-    catch {
-      importAttempted = true
-      return null
-    }
+
+    importAttempted = true
+    return null
   })()
 
   try {

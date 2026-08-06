@@ -19,7 +19,8 @@ pnpm add markstream-angular @angular/core @angular/common
 
 Optional peer dependencies:
 
-- `stream-monaco` for Monaco-powered code blocks
+- `stream-diffs` (recommended) for enhanced / streaming code blocks
+- `stream-monaco` for Monaco-powered code blocks (automatic fallback when `stream-diffs` is absent)
 - `mermaid` for Mermaid diagrams
 - `katex` for math rendering
 - `@terrastruct/d2` for D2 diagrams
@@ -30,7 +31,7 @@ Install only the peers your output actually needs. Plain Markdown does not requi
 Example:
 
 ```bash
-pnpm add stream-monaco mermaid katex @terrastruct/d2 @antv/infographic
+pnpm add stream-diffs mermaid katex @terrastruct/d2 @antv/infographic
 ```
 
 ## Quick Start

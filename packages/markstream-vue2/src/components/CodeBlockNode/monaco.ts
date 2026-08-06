@@ -37,6 +37,22 @@ export async function getUseMonaco() {
   if (importAttempted)
     return null
 
+  // Prefer `stream-diffs`: smaller runtime without the heavy
+  // `monaco-editor` dependency. Consumers on Webpack 4 / CJS toolchains that
+  // install `stream-monaco` keep using its legacy entry below.
+  try {
+    const diffs = await import('stream-diffs')
+    const resolved = (diffs as any)?.default ?? diffs
+    if (typeof resolved?.useMonaco === 'function') {
+      mod = resolved
+      await preload(mod)
+      return mod
+    }
+  }
+  catch {
+    // stream-diffs is not installed; fall through to stream-monaco/legacy.
+  }
+
   try {
     const imported = await import('stream-monaco/legacy')
     mod = (imported as any)?.default ?? imported

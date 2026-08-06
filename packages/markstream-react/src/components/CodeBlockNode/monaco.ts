@@ -8,13 +8,34 @@ export async function getUseMonaco() {
     return mod
   if (importAttempted)
     return null
+
+  // Prefer `stream-diffs`: it is a smaller runtime without the heavy
+  // `monaco-editor` dependency. Consumers who still install `stream-monaco`
+  // keep working through the fallback below.
   try {
-    mod = await import('stream-monaco')
-    await preload(mod)
-    return mod
+    const diffs = await import('stream-diffs')
+    if (diffs?.useMonaco) {
+      mod = diffs
+      await preload(mod)
+      return mod
+    }
   }
   catch {
-    importAttempted = true
-    return null
+    // stream-diffs is not installed; fall through to stream-monaco.
   }
+
+  try {
+    const monaco = await import('stream-monaco')
+    if (monaco?.useMonaco) {
+      mod = monaco
+      await preload(mod)
+      return mod
+    }
+  }
+  catch {
+    // stream-monaco is not installed either.
+  }
+
+  importAttempted = true
+  return null
 }

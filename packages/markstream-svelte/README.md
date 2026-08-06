@@ -27,8 +27,12 @@ Optional heavy renderers stay as peer dependencies, matching the Vue and React p
 Plain Markdown does not require these packages:
 
 ```bash
-pnpm add katex mermaid stream-monaco @terrastruct/d2 @antv/infographic
+pnpm add katex mermaid stream-diffs @terrastruct/d2 @antv/infographic
 ```
+
+`stream-diffs` powers the enhanced code blocks (smaller runtime, no `monaco-editor`).
+If you prefer the legacy Monaco-based rendering, install `stream-monaco` instead;
+it is used automatically as a fallback when `stream-diffs` is absent.
 
 ## Basic Usage
 

@@ -128,7 +128,8 @@ export default function Page() {
 | Feature | Package |
 | --- | --- |
 | Shiki code blocks | `stream-markdown` |
-| Monaco editor code blocks | `stream-monaco` |
+| Enhanced code blocks (recommended) | `stream-diffs` |
+| Monaco editor code blocks | `stream-monaco` (fallback) |
 | Mermaid diagrams | `mermaid` |
 | KaTeX math | `katex` |
 | D2 diagrams | `@terrastruct/d2` |
