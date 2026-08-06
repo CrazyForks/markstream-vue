@@ -103,6 +103,21 @@ const TOLERANT_BOUNDARY_SPLIT_OPENERS = ['$', '\\[']
 const STREAMING_ADMONITION_OPEN_RE = /(^|\r?\n)[\t ]*:::[\t ]*(?:warning|info|note|tip|danger|caution|error)(?=[\t ]|\r?\n|$)[^\r\n]*(?:\r?\n[\t ]*)*$/
 const SAFE_MARKDOWN_WINDOW_MARGIN = 1024
 const SAFE_MARKDOWN_WINDOW_OVERLAP = 16
+/**
+ * Cached streaming safe-markdown transform, keyed by the md instance.
+ *
+ * The cache is owned by the TOP-LEVEL document stream: fragment parses
+ * (e.g. `<details>` / custom html children, `__disableStructuredReuse`)
+ * share the md instance and may overwrite the entry — benign, because the
+ * transforms are deterministic functions of the source text, and the fast
+ * path additionally guards with `mode` + `startsWith(previous.source)`, so
+ * a stale/foreign entry either re-produces the identical transform or falls
+ * back to a full-document transform.
+ *
+ * Memory: holds the full raw source + transformed output (~2-3x the document
+ * size) per md instance for the instance lifetime; WeakMap-keyed so it is
+ * collected with the instance. Cleared on the final auto-parse reset.
+ */
 const safeMarkdownCache = new WeakMap<object, {
   source: string
   safeMarkdown: string
@@ -1705,12 +1720,28 @@ function sameTokenAttrs(left: Token | MarkdownToken | undefined, right: Token | 
   return true
 }
 
+/**
+ * Shape equality for reuse-boundary tokens, used when the stream parser
+ * recreates prefix tokens after a full re-parse or a container tail merge
+ * (identity comparison fails because the tokens are new objects).
+ *
+ * Correctness rests on markdown-it tokenization being a deterministic
+ * function of the source text: identical source in the stream re-parse
+ * yields tokens with identical shape INCLUDING fields not compared here
+ * (children, meta, interior group tokens). The shape fallback therefore
+ * never detects a change that identity comparison would have caught; it
+ * only re-admits groups whose source provably did not change (interior
+ * groups never receive appended content). `level` is compared because a
+ * re-parsed boundary token at a different nesting depth cannot be the
+ * same group.
+ */
 function isSameTokenShapeForReuse(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   return !!left
     && !!right
     && left.type === right.type
     && left.tag === right.tag
     && left.nesting === right.nesting
+    && left.level === right.level
     && left.markup === right.markup
     && left.content === right.content
     && left.info === right.info
@@ -4159,6 +4190,10 @@ export function parseMarkdownToStructure(
   if (shouldResetTopLevelStreamCacheForFinalAutoParse(md, options)) {
     md.stream!.reset!()
     clearTolerantMathBoundaryStreamCache(md)
+    // The safe-markdown cache is owned by the top-level streaming session;
+    // a final auto-parse ends that session, so drop the retained source +
+    // transform (the next stream parse starts a fresh document).
+    safeMarkdownCache.delete(md as unknown as object)
   }
 
   const safeMarkdown = getSafeMarkdown(md, sourceMarkdown, isFinal, options)

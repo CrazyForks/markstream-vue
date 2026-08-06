@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { getMarkdown, parseMarkdownToStructure } from '../src'
 
+let paragraphTextCounter = 0
+
 function paragraphText(markdown: string, options: { final?: boolean, streamParse?: boolean } = {}) {
-  const md = getMarkdown(`trailing-marker-${Math.random()}`)
+  const md = getMarkdown(`trailing-marker-${paragraphTextCounter++}`)
   const nodes = parseMarkdownToStructure(markdown, md, {
     final: options.final ?? true,
     streamParse: options.streamParse ?? false,
@@ -28,7 +30,7 @@ describe('trailing mid-state marker stripping', () => {
   it('still strips streaming mid-state markers in non-final parses', () => {
     // In streaming mode the trailing marker is a mid-state artifact and is
     // dropped so the UI does not flash a dangling `(` / `*`.
-    const md = getMarkdown(`trailing-marker-stream-${Math.random()}`)
+    const md = getMarkdown(`trailing-marker-stream-${paragraphTextCounter++}`)
     const nodes = parseMarkdownToStructure('plain text(', md, {
       final: false,
       streamParse: true,
