@@ -135,10 +135,8 @@ describe('pre code node diff preview', () => {
     wrapper.unmount()
   })
 
-  it('expands the fallback gutter when the line count crosses a digit boundary', async () => {
+  it('keeps the fallback gutter stable across one- to four-digit line counts', async () => {
     const createCode = (lineCount: number) => Array.from({ length: lineCount }, (_, index) => `line ${index + 1}`).join('\n')
-    const code99 = createCode(99)
-    const code100 = createCode(100)
     const wrapper = mount(PreCodeNode, {
       props: {
         loading: true,
@@ -146,29 +144,29 @@ describe('pre code node diff preview', () => {
         node: {
           type: 'code_block',
           language: 'txt',
-          code: code99,
-          raw: `\`\`\`txt\n${code99}`,
+          code: createCode(9),
+          raw: `\`\`\`txt\n${createCode(9)}`,
           loading: true,
         },
       },
     })
 
     const pre = wrapper.get('pre').element as HTMLElement
-    expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('2ch')
+    for (const lineCount of [9, 10, 100, 1000]) {
+      const code = createCode(lineCount)
+      await wrapper.setProps({
+        node: {
+          type: 'code_block',
+          language: 'txt',
+          code,
+          raw: `\`\`\`txt\n${code}`,
+          loading: true,
+        },
+      })
+      expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('4ch')
+    }
     expect(pre.style.getPropertyValue('--markstream-code-padding-left')).toContain('var(--markstream-pre-line-number-width, 2ch)')
-
-    await wrapper.setProps({
-      node: {
-        type: 'code_block',
-        language: 'txt',
-        code: code100,
-        raw: `\`\`\`txt\n${code100}`,
-        loading: true,
-      },
-    })
-
-    expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('3ch')
-    expect(wrapper.get('.markstream-pre__line-numbers-text').element.textContent?.split('\n')).toHaveLength(100)
+    expect(wrapper.get('.markstream-pre__line-numbers-text').element.textContent?.split('\n')).toHaveLength(1000)
 
     wrapper.unmount()
   })
@@ -176,7 +174,7 @@ describe('pre code node diff preview', () => {
   it.each([
     { diffInline: false, pane: 'modified' },
     { diffInline: true, pane: 'inline' },
-  ])('matches the $pane diff fallback gutter to a three-digit source', ({ diffInline, pane }) => {
+  ])('reserves the four-digit $pane diff fallback gutter for a three-digit source', ({ diffInline, pane }) => {
     const originalCode = Array.from({ length: 99 }, (_, index) => `line ${index + 1}`).join('\n')
     const updatedCode = `${originalCode}\nline 100`
     const wrapper = mount(PreCodeNode, {
@@ -196,8 +194,8 @@ describe('pre code node diff preview', () => {
     })
 
     const pre = wrapper.get('pre').element as HTMLElement
-    expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('3ch')
-    expect(pre.style.getPropertyValue('--markstream-pre-diff-line-number-width')).toBe('3ch')
+    expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('4ch')
+    expect(pre.style.getPropertyValue('--markstream-pre-diff-line-number-width')).toBe('4ch')
     expect(wrapper.get(`.markstream-pre__diff-pane--${pane} .markstream-pre__diff-line:last-child .markstream-pre__diff-number`).text()).toBe('100')
 
     wrapper.unmount()
@@ -229,7 +227,7 @@ describe('pre code node diff preview', () => {
 
     const pre = wrapper.get('pre').element as HTMLElement
     expect(pre.classList).toContain('markstream-pre--diff-collapsed')
-    expect(pre.style.getPropertyValue('--markstream-pre-diff-line-number-width')).toBe('3ch')
+    expect(pre.style.getPropertyValue('--markstream-pre-diff-line-number-width')).toBe('4ch')
 
     wrapper.unmount()
   })
