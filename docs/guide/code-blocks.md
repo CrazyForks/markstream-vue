@@ -20,6 +20,7 @@ npm i stream-diffs
 
 - Boundary: the `stream-diffs` root entry is framework-agnostic. Its controllers receive an `HTMLElement` and plain code/diff data; it has no Vue lifecycle. `stream-diffs/vue` is a separate optional convenience entry and is not used by `markstream-vue`.
 - Behavior: this Vue adapter keeps the stable `PreCodeNode` representation while content is streaming. Once the block is complete and visible, `CodeBlockNode` mounts one `stream-diffs` File or FileDiff surface and applies language highlighting.
+- The fallback and enhanced surfaces reserve a four-character minimum line-number column. This keeps the gutter stable while streamed content crosses the 10, 100, or 1000 line boundary; longer line numbers expand the column as needed.
 - `CodeBlockShell` owns the title and action bar. The inner `data-diffs-header` is disabled so File surfaces do not render a second header.
 - No worker plugin or extra CSS import is required for this integration. See also: [/guide/monaco](/guide/monaco) for runtime and preload details.
 

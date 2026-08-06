@@ -634,6 +634,33 @@ const diffPreviewPanes = computed(() => {
   ])
 })
 
+const lineNumberLayoutStyle = computed(() => {
+  if (props.showLineNumbers !== true)
+    return undefined
+
+  let maximumLineNumber = isDiffPreview.value ? 1 : codeLineCount.value
+  if (isDiffPreview.value) {
+    maximumLineNumber = Math.max(
+      maximumLineNumber,
+      splitDiffSource(props.node?.originalCode).length,
+      splitDiffSource(props.node?.updatedCode).length,
+    )
+    for (const pane of diffPreviewPanes.value) {
+      for (const line of pane.lines) {
+        if (typeof line.number === 'number')
+          maximumLineNumber = Math.max(maximumLineNumber, line.number)
+      }
+    }
+  }
+
+  const width = `${Math.max(4, String(maximumLineNumber).length)}ch`
+  return {
+    '--markstream-pre-line-number-width': width,
+    '--markstream-pre-diff-line-number-width': width,
+    '--markstream-code-padding-left': 'calc(var(--markstream-pre-line-number-padding-left, 2ch) + var(--markstream-pre-line-number-width, 2ch) + var(--markstream-pre-line-number-padding-right, 1ch) + var(--markstream-pre-line-number-separator-width, 2px) + var(--markstream-pre-line-number-gap-to-code, 1ch))',
+  }
+})
+
 const hasCollapsedDiffPreview = computed(() => {
   return diffPreviewPanes.value.some(pane => pane.lines.some(line => line.kind === 'collapsed'))
 })
@@ -822,7 +849,7 @@ function getDiffLineStyle(index: number, side: 'original' | 'modified') {
 <template>
   <pre
     ref="preRef"
-    :style="reservedHeightStyle"
+    :style="[reservedHeightStyle, lineNumberLayoutStyle]"
     :class="[languageClass, { 'markstream-pre--line-numbers': props.showLineNumbers, 'markstream-pre--diff-preview': isDiffPreview, 'markstream-pre--diff-inline': isInlineDiffPreview, 'markstream-pre--diff-collapsed': hasCollapsedDiffPreview }]"
     :aria-busy="isLoading"
     :aria-label="ariaLabel"

@@ -159,6 +159,29 @@ describe('codeBlockNode final Diffs gate', () => {
     wrapper.unmount()
   })
 
+  it('reserves a four-digit gutter while the pending fallback grows', async () => {
+    const makeCode = (lineCount: number) => Array.from({ length: lineCount }, (_, index) => `const line${index + 1} = ${index + 1}`).join('\n')
+    const wrapper = mount(DeferredCodeBlockNode, {
+      props: {
+        node: makeNode(makeCode(9), true),
+        loading: true,
+        stream: true,
+        showHeader: false,
+      },
+    })
+
+    await flush()
+
+    const pre = wrapper.get('pre.code-pre-fallback').element as HTMLElement
+    for (const lineCount of [9, 10, 100, 1000]) {
+      await wrapper.setProps({ node: makeNode(makeCode(lineCount), true) })
+      await flush()
+      expect(pre.style.getPropertyValue('--markstream-pre-line-number-width')).toBe('4ch')
+    }
+    expect(pre.style.getPropertyValue('--markstream-code-padding-left')).toContain('var(--markstream-pre-line-number-width, 2ch)')
+    wrapper.unmount()
+  })
+
   it('waits for both completion and actual visibility before creating one File surface', async () => {
     const runtime = helpers()
     const wrapper = mount(DeferredCodeBlockNode, {
@@ -167,6 +190,9 @@ describe('codeBlockNode final Diffs gate', () => {
         loading: false,
         stream: true,
         showHeader: false,
+        monacoOptions: {
+          unsafeCSS: '[data-file] { --consumer-code-gutter: 1; }',
+        },
       },
     })
 
@@ -180,6 +206,9 @@ describe('codeBlockNode final Diffs gate', () => {
       expect(runtime.createEditor).toHaveBeenCalledTimes(1)
       expect(runtime.useMonaco.mock.calls[0]?.[0]?.stream).toBe(false)
       expect(runtime.useMonaco.mock.calls[0]?.[0]?.disableFileHeader).toBe(true)
+      expect(runtime.useMonaco.mock.calls[0]?.[0]?.unsafeCSS).toContain('--diffs-min-number-column-width-default: 4ch !important')
+      expect(runtime.useMonaco.mock.calls[0]?.[0]?.unsafeCSS).toContain('--consumer-code-gutter: 1')
+      expect(runtime.useMonaco.mock.calls[0]?.[0]?.unsafeCSS.indexOf('--diffs-min-number-column-width-default')).toBeLessThan(runtime.useMonaco.mock.calls[0]?.[0]?.unsafeCSS.indexOf('--consumer-code-gutter'))
       expect(wrapper.find('diffs-container').exists()).toBe(true)
       expect(wrapper.find('pre.code-pre-fallback').exists()).toBe(false)
       expect(wrapper.get('[data-markstream-code-block="1"]').attributes('data-markstream-code-block-state')).toBe('settled')

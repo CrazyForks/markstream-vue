@@ -973,9 +973,7 @@ const preFallbackStyle = computed(() => {
   } as Record<string, string | number>
 
   style['--markstream-pre-line-number-top'] = `${preFallbackVerticalPadding.value.top}px`
-  style['--markstream-code-padding-left'] = 'calc(2ch + 2ch + 1ch + 2px + 1ch)'
   style['--markstream-pre-line-number-left'] = '0px'
-  style['--markstream-pre-line-number-width'] = '2ch'
   style['--markstream-pre-line-number-padding-left'] = '2ch'
   style['--markstream-pre-line-number-padding-right'] = '1ch'
   style['--markstream-pre-line-number-separator-width'] = '2px'
@@ -4160,13 +4158,16 @@ function buildRuntimeMonacoOptions() {
   if (fontFamily)
     nextOptions.fontFamily ??= fontFamily
 
+  const configuredUnsafeCSS = typeof nextOptions.unsafeCSS === 'string'
+    ? nextOptions.unsafeCSS
+    : ''
+  nextOptions.unsafeCSS = `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim()
+
   if (isDiff.value) {
     nextOptions.wordWrap = preFallbackWrap.value ? 'on' : 'off'
-    const existingUnsafeCSS = typeof nextOptions.unsafeCSS === 'string'
-      ? `${nextOptions.unsafeCSS}\n`
-      : ''
     const collapse = resolvePreFallbackDiffCollapse()
-    nextOptions.unsafeCSS = `${existingUnsafeCSS}
+    nextOptions.unsafeCSS += `
 pre { column-gap: 0; }
 pre > code { column-gap: 0; padding-block: 0; }
 [data-separator="line-info"] { margin-top: 0; }
