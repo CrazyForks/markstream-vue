@@ -17,14 +17,12 @@
     "katex": "^0.16.47",
     "markstream-angular": "workspace:*",
     "mermaid": "^11.16.0",
-    "monaco-editor": "^0.52.2",
     "rxjs": "^7.8.2",
-    "stream-monaco": "latest"
+    "stream-diffs": "latest"
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
     "typescript": "^5.9.3",
-    "vite": "^7.3.6",
-    "vite-plugin-monaco-editor-esm": "^2.0.2"
+    "vite": "^7.3.6"
   }
 }

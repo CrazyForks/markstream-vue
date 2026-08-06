@@ -1,9 +1,8 @@
-import type { Plugin, PluginOption } from 'vite'
+import type { Plugin } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
 import Vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
-import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 
 const D2_VENDOR_PUBLIC_PATH = '/vendor/d2-browser.js'
 const D2_VENDOR_FILE_NAME = 'vendor/d2-browser.js'
@@ -94,28 +93,15 @@ export default defineConfig({
       'katex/dist/contrib/mhchem',
       'mermaid',
     ],
-    exclude: ['stream-monaco'],
+    exclude: ['stream-diffs'],
   },
   plugins: [
     Vue(),
     d2VendorPlugin(),
-    monacoEditorPlugin({
-      languageWorkers: [
-        'editorWorkerService',
-        'typescript',
-        'css',
-        'html',
-        'json',
-      ],
-      customDistPath(_root, buildOutDir) {
-        return path.resolve(buildOutDir, 'monacoeditorwork')
-      },
-    }) as unknown as PluginOption,
   ],
   build: {
-    // The Angular playground still ships Monaco as an optional local asset,
-    // so a higher warning budget keeps the build signal focused on true
-    // regressions instead of the expected editor payload.
+    // Angular + D2 bundles stay heavy; keep a raised warning budget so the
+    // build signal focuses on true regressions.
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {
@@ -139,9 +125,6 @@ export default defineConfig({
 
           if (normalized.includes('/node_modules/monaco-editor/'))
             return 'monaco-editor'
-
-          if (normalized.includes('/node_modules/stream-monaco/'))
-            return 'stream-monaco'
 
           if (normalized.includes('/playground-angular/src/vendor/markstream-angular-jit.ts'))
             return 'markstream-angular'

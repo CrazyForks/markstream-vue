@@ -2,7 +2,6 @@ import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import vue2 from '@vitejs/plugin-vue2'
 import { defineConfig } from 'vite'
-import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 
 const require = createRequire(import.meta.url)
 let vueCompiler: any
@@ -22,18 +21,6 @@ const vueRuntime = require.resolve('vue/dist/vue.runtime.esm.js')
 export default defineConfig({
   plugins: [
     vue2({ compiler: vueCompiler, script: { babelParserPlugins: ['typescript'] } }),
-    monacoEditorPlugin({
-      languageWorkers: [
-        'editorWorkerService',
-        'typescript',
-        'css',
-        'html',
-        'json',
-      ],
-      customDistPath(root, buildOutDir) {
-        return resolve(buildOutDir, 'monacoeditorwork')
-      },
-    }),
   ],
   build: {
     modulePreload: false,
@@ -49,7 +36,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['stream-monaco'],
+    exclude: ['stream-diffs'],
   },
   resolve: {
     dedupe: ['vue'],
