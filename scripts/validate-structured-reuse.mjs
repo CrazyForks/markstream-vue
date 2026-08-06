@@ -2,7 +2,9 @@
 /**
  * Validates structured top-level node reuse correctness:
  * streams every real corpus commit-by-commit through the reuse path and
- * compares the produced nodes with a cold full parse at every commit.
+ * compares the produced nodes with a cold full parse at every commit,
+ * then validates the final (final:true) parse of the streamed document
+ * against a cold final parse.
  *
  * The reuse path (processTopLevelTokensWithReuse) may only produce output
  * that is byte-identical to a cold parse. Any divergence fails the script.
@@ -20,7 +22,7 @@ const parser = await import(pathToFileURL(parserDistPath).href)
 const { getMarkdown, parseMarkdownToStructure } = parser
 
 const CORPORA = {
-  changelog: 'CHANGELOG.md',
+  'changelog': 'CHANGELOG.md',
   'readme-en': 'README.md',
   'readme-zh': 'README.zh-CN.md',
   'docs-performance': 'docs/guide/performance.md',
@@ -34,7 +36,7 @@ function stableSignature(value, seen = new Set()) {
   if (value == null || typeof value === 'number' || typeof value === 'boolean')
     return String(value)
   if (typeof value === 'string')
-    return `s:${value.length}:${value.slice(0, 200)}`
+    return `s:${value}`
   if (typeof value === 'function')
     return 'fn'
   if (typeof value !== 'object')
@@ -82,10 +84,31 @@ async function validate(corpusId, filePath) {
     reusedCount += commitTiming.processTokensReusedTopLevelNodes ?? 0
   }
 
+  // Final-commit validation: the renderer ends a streaming session with a
+  // final:true parse on the same md instance (streamParse:true, same as
+  // useMarkdownParsing). The final path is where regressions like trailing
+  // mid-state marker stripping silently drop real characters, so compare it
+  // against a cold final parse too.
+  const finalTiming = {}
+  const finalNodes = parseMarkdownToStructure(current, md, {
+    final: true,
+    streamParse: true,
+    __reuseStableTopLevelNodes: true,
+    __timing: finalTiming,
+  })
+  const finalCold = parseMarkdownToStructure(current, coldMd, { final: true, streamParse: false })
+  let finalMismatches = 0
+  if (!nodesEqual(finalNodes, finalCold)) {
+    finalMismatches++
+    console.error(`FINAL MISMATCH ${corpusId} chars ${current.length}`)
+  }
+  mismatches += finalMismatches
+
   console.log(JSON.stringify({
     corpusId,
     chars: markdown.length,
     mismatches,
+    finalMismatches,
     reusedPrefixNodes: reusedCount,
     ok: mismatches === 0,
   }))

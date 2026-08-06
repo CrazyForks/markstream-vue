@@ -103,6 +103,21 @@ const TOLERANT_BOUNDARY_SPLIT_OPENERS = ['$', '\\[']
 const STREAMING_ADMONITION_OPEN_RE = /(^|\r?\n)[\t ]*:::[\t ]*(?:warning|info|note|tip|danger|caution|error)(?=[\t ]|\r?\n|$)[^\r\n]*(?:\r?\n[\t ]*)*$/
 const SAFE_MARKDOWN_WINDOW_MARGIN = 1024
 const SAFE_MARKDOWN_WINDOW_OVERLAP = 16
+/**
+ * Cached streaming safe-markdown transform, keyed by the md instance.
+ *
+ * The cache is owned by the TOP-LEVEL document stream: fragment parses
+ * (e.g. `<details>` / custom html children, `__disableStructuredReuse`)
+ * share the md instance and may overwrite the entry — benign, because the
+ * transforms are deterministic functions of the source text, and the fast
+ * path additionally guards with `mode` + `startsWith(previous.source)`, so
+ * a stale/foreign entry either re-produces the identical transform or falls
+ * back to a full-document transform.
+ *
+ * Memory: holds the full raw source + transformed output (~2-3x the document
+ * size) per md instance for the instance lifetime; WeakMap-keyed so it is
+ * collected with the instance. Cleared on the final auto-parse reset.
+ */
 const safeMarkdownCache = new WeakMap<object, {
   source: string
   safeMarkdown: string
@@ -509,7 +524,7 @@ function processTopLevelTokensWithReuse(
       __linkifyDemotionSeed: previous.nodes
         .slice(0, stableGroupCount)
         .map(node => String((node as Record<string, unknown>).raw ?? '')),
-    }, timing)
+    } as InternalParseOptions, timing)
     const expectedTailNodes = groupStarts.length - stableGroupCount
 
     if (tailNodes.length === expectedTailNodes) {
@@ -1668,7 +1683,7 @@ function shouldCloneTopLevelStreamTokens(options: ParseOptions) {
     || typeof options.postTransformTokens === 'function'
 }
 
-function sameTokenMap(left: Token | undefined, right: Token | undefined) {
+function sameTokenMap(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   const leftMap = left?.map
   const rightMap = right?.map
 
@@ -1682,7 +1697,7 @@ function sameTokenMap(left: Token | undefined, right: Token | undefined) {
     && leftMap.every((value, index) => value === rightMap[index])
 }
 
-function sameTokenAttrs(left: Token | undefined, right: Token | undefined) {
+function sameTokenAttrs(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   const leftAttrs = left?.attrs
   const rightAttrs = right?.attrs
 
@@ -1705,12 +1720,28 @@ function sameTokenAttrs(left: Token | undefined, right: Token | undefined) {
   return true
 }
 
-function isSameTokenShapeForReuse(left: Token | undefined, right: Token | undefined) {
+/**
+ * Shape equality for reuse-boundary tokens, used when the stream parser
+ * recreates prefix tokens after a full re-parse or a container tail merge
+ * (identity comparison fails because the tokens are new objects).
+ *
+ * Correctness rests on markdown-it tokenization being a deterministic
+ * function of the source text: identical source in the stream re-parse
+ * yields tokens with identical shape INCLUDING fields not compared here
+ * (children, meta, interior group tokens). The shape fallback therefore
+ * never detects a change that identity comparison would have caught; it
+ * only re-admits groups whose source provably did not change (interior
+ * groups never receive appended content). `level` is compared because a
+ * re-parsed boundary token at a different nesting depth cannot be the
+ * same group.
+ */
+function isSameTokenShapeForReuse(left: Token | MarkdownToken | undefined, right: Token | MarkdownToken | undefined) {
   return !!left
     && !!right
     && left.type === right.type
     && left.tag === right.tag
     && left.nesting === right.nesting
+    && left.level === right.level
     && left.markup === right.markup
     && left.content === right.content
     && left.info === right.info
@@ -4096,10 +4127,10 @@ function getSafeMarkdown(md: MarkdownIt, sourceMarkdown: string, isFinal: boolea
   if (
     // Append-only streaming fast path: only the appended tail can introduce
     // new mid-state markers, and the prefix of the previous safe markdown was
-    // already transformed identically. Process a tail window of the RAW
-    // source (with a small overlap for the `\r`-fix boundary) and stitch it
-    // onto the untouched prefix, avoiding O(doc) regex scans on every commit
-    // (quadratic total for long streaming documents).
+    // already transformed identically. Transform a tail window of the RAW
+    // source (old tail margin + appended chunk) and stitch it onto the cached
+    // prefix, avoiding O(doc) regex scans on every commit (quadratic total
+    // for long streaming documents).
     !isFinal
     && !options.customHtmlTags?.length
     && previous
@@ -4107,10 +4138,28 @@ function getSafeMarkdown(md: MarkdownIt, sourceMarkdown: string, isFinal: boolea
     && sourceMarkdown.length >= previous.source.length
     && sourceMarkdown.startsWith(previous.source)
   ) {
-    const prefixCut = Math.max(0, previous.safeMarkdown.length - SAFE_MARKDOWN_WINDOW_MARGIN - SAFE_MARKDOWN_WINDOW_OVERLAP)
-    const window = sourceMarkdown.slice(prefixCut)
+    // The window cut MUST be a raw-source index. The previous implementation
+    // cut `previous.safeMarkdown` at a safeMarkdown index but sliced the raw
+    // source with it: any char-inserting fix earlier in the document (e.g.
+    // `\n(abla|eq|ot|exists)` / `\r(ight|ho)`) made the two index spaces
+    // diverge and silently dropped/repeated chars at the seam.
+    const windowStart = Math.max(0, previous.source.length - SAFE_MARKDOWN_WINDOW_MARGIN - SAFE_MARKDOWN_WINDOW_OVERLAP)
+    const window = sourceMarkdown.slice(windowStart)
     const transformed = transformStreamingSafeMarkdown(window, isFinal, md, options)
-    safeMarkdown = `${previous.safeMarkdown.slice(0, prefixCut)}${transformed}`
+    // Overlap verification: the part of the window that overlaps the previous
+    // source (its first `previous.source.length - windowStart` chars) must be
+    // byte-identical to the previous safe markdown tail. A re-transform of
+    // unchanged source is deterministic, so equality proves the overlap region
+    // had no char-inserting fixes (which would shift the seam) AND that the
+    // appended chunk did not complete a cross-boundary fix (e.g. a trailing
+    // `\r` followed by an appended `ight`). Any divergence falls back to a
+    // full-document transform, which is always correct.
+    const overlapLength = previous.source.length - windowStart
+    const overlapOk = transformed.length >= overlapLength
+      && transformed.slice(0, overlapLength) === previous.safeMarkdown.slice(-overlapLength)
+    safeMarkdown = overlapOk
+      ? previous.safeMarkdown.slice(0, previous.safeMarkdown.length - overlapLength) + transformed
+      : transformStreamingSafeMarkdown(sourceMarkdown, isFinal, md, options)
   }
   else {
     safeMarkdown = transformStreamingSafeMarkdown(sourceMarkdown, isFinal, md, options)
@@ -4141,6 +4190,10 @@ export function parseMarkdownToStructure(
   if (shouldResetTopLevelStreamCacheForFinalAutoParse(md, options)) {
     md.stream!.reset!()
     clearTolerantMathBoundaryStreamCache(md)
+    // The safe-markdown cache is owned by the top-level streaming session;
+    // a final auto-parse ends that session, so drop the retained source +
+    // transform (the next stream parse starts a fresh document).
+    safeMarkdownCache.delete(md as unknown as object)
   }
 
   const safeMarkdown = getSafeMarkdown(md, sourceMarkdown, isFinal, options)
@@ -4296,6 +4349,12 @@ export function processTokens(tokens: MarkdownToken[], options?: ParseOptions): 
   const linkifyContext = createLinkifyDemotionContextTracker(options)
   const seedRaws = (options as InternalParseOptions | undefined)?.__linkifyDemotionSeed
   if (Array.isArray(seedRaws) && seedRaws.length) {
+    // Replay the reused prefix node raws into the demotion tracker. This is a
+    // top-level-node granularity approximation: a full parse remembers raws at
+    // nested granularity too (per-list-item paragraphs etc.). The demotion
+    // heuristics absorb the difference (continuation inheritance + per-block
+    // re-inference), and `test/linkify-seed-granularity.test.ts` pins the
+    // streamed == cold behavior for mixed-feature prefixes.
     for (const raw of seedRaws)
       linkifyContext.remember(String(raw ?? ''))
   }
