@@ -1656,7 +1656,7 @@ onUnmounted(() => {
     <!-- Configurable header area: consumers may override via named slots -->
     <div
       v-if="props.showHeader"
-      class="code-block-header flex justify-between items-center px-4 py-2.5 border-b border-gray-400/5"
+      class="code-block-header flex justify-between items-center"
       :style="headerStyle"
     >
       <!-- left slot / fallback language label -->
@@ -1956,7 +1956,14 @@ onUnmounted(() => {
 }
 
 .code-block-header {
-  gap: 16px;
+  gap: var(--ms-gap-header, 16px);
+  padding: var(--ms-inset-panel-y, 0.625rem) var(--ms-inset-panel-x, 1rem);
+  border-bottom: 1px solid var(--code-border, var(--markstream-code-border-color, rgb(229 231 235)));
+  background: var(--code-header-bg, transparent);
+  color: var(--code-fg, inherit);
+  border-radius: var(--ms-radius, 0) var(--ms-radius, 0) 0 0;
+  position: relative;
+  z-index: 1;
 }
 
 .code-editor-layer {

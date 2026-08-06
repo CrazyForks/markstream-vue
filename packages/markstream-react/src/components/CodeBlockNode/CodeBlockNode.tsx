@@ -259,6 +259,45 @@ function shouldPreferPlainTextFallbackSurface(bg: string, fg: string, isPlainTex
     || (fgLuminance != null && fgLuminance > 190)
 }
 
+function parseCodeFenceInfo(raw: string) {
+  const firstLine = String(raw ?? '').split(/\r?\n/, 1)[0]?.trim() ?? ''
+  if (firstLine.length < 3)
+    return ''
+  const marker = firstLine[0]
+  if ((marker !== '`' && marker !== '~') || firstLine[1] !== marker || firstLine[2] !== marker)
+    return ''
+  let index = 3
+  while (firstLine[index] === marker)
+    index += 1
+  return firstLine.slice(index).trim()
+}
+
+function extractCodeBlockFileLabel(raw: string) {
+  const info = parseCodeFenceInfo(raw)
+  if (!info)
+    return ''
+  const tokens = info.split(/\s+/).filter(Boolean)
+  if (!tokens.length)
+    return ''
+  const candidates = tokens[0] === 'diff' ? tokens.slice(1) : tokens
+  for (const token of candidates) {
+    const value = token.includes(':')
+      ? token.slice(token.indexOf(':') + 1)
+      : token
+    if (value && /[./\\-]/.test(value))
+      return value
+  }
+  return ''
+}
+
+function resolveCodeBlockHeader(raw: string, displayLanguage: string, isDiff: boolean) {
+  const fileLabel = extractCodeBlockFileLabel(raw)
+  return {
+    title: fileLabel || displayLanguage,
+    caption: fileLabel ? (isDiff ? `Diff / ${displayLanguage}` : displayLanguage) : '',
+  }
+}
+
 export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactEvents) {
   const props = { ...DEFAULTS, ...rawProps } as ResolvedProps & CodeBlockNodeReactEvents
   const {
@@ -816,6 +855,13 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     return languageMap[lang] || lang.charAt(0).toUpperCase() + lang.slice(1)
   }, [canonicalLanguage])
 
+  const codeBlockHeader = useMemo(
+    () => resolveCodeBlockHeader(String(node.raw ?? ''), displayLanguage, Boolean(node.diff)),
+    [displayLanguage, node.diff, node.raw],
+  )
+  const headerTitle = codeBlockHeader.title
+  const headerCaption = codeBlockHeader.caption
+
   const resolvedCode = useMemo(() => {
     if (node.diff)
       return node.updatedCode ?? node.code ?? ''
@@ -851,9 +897,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     if (node.diff)
       return undefined
     return {
-      color: `var(--vscode-editor-foreground, ${resolvedSurfaceIsDark ? '#e5e7eb' : '#111827'})`,
-      backgroundColor: `var(--vscode-editor-background, ${resolvedSurfaceIsDark ? '#111827' : '#ffffff'})`,
-    }
+      '--code-header-bg': resolvedSurfaceIsDark ? '#1f2937' : '#f8fafc',
+      '--code-border': resolvedSurfaceIsDark ? 'rgb(55 65 81 / 0.3)' : 'rgb(229 231 235)',
+      '--code-header-title': resolvedSurfaceIsDark ? '#e5e7eb' : '#111827',
+      '--code-action-fg': resolvedSurfaceIsDark ? '#9ca3af' : '#64748b',
+      '--code-line-number': resolvedSurfaceIsDark ? '#6b7280' : '#94a3b8',
+      '--ms-text-label': '13px',
+      '--ms-gap-header': '0.75rem',
+    } as React.CSSProperties
   }, [node.diff, resolvedSurfaceIsDark])
 
   const hasStreamingCode = useMemo(() => {
@@ -1265,16 +1316,21 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     >
       {showHeader && (
         <div
-          className="code-block-header flex justify-between items-center px-4 py-2.5 border-b border-gray-400/5"
+          className="code-block-header flex justify-between items-center px-4 py-2.5 border-b"
           style={headerStyle}
         >
-          <div className="flex items-center space-x-2 flex-1 overflow-hidden">
+          <div className="code-header-main flex items-center space-x-2 flex-1 overflow-hidden">
             <span
               className="icon-slot h-4 w-4 flex-shrink-0"
               // language icons are trusted internal assets or user-supplied via resolver
               dangerouslySetInnerHTML={{ __html: languageIcon }}
             />
-            <span className="text-sm font-medium font-mono truncate">{displayLanguage}</span>
+            <div className="code-header-copy min-w-0">
+              <div className="code-header-title truncate">{headerTitle}</div>
+              {headerCaption && (
+                <div className="code-header-caption truncate">{headerCaption}</div>
+              )}
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             {showCollapseButton && (

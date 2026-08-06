@@ -29,6 +29,42 @@ interface MonacoHelpers {
   setTheme?: (theme?: CodeBlockMonacoTheme) => Promise<unknown> | unknown
 }
 
+function parseCodeFenceInfo(raw: string) {
+  const firstLine = String(raw ?? '').split(/\r?\n/, 1)[0]?.trim() ?? ''
+  if (firstLine.length < 3)
+    return ''
+  const marker = firstLine[0]
+  if ((marker !== '`' && marker !== '~') || firstLine[1] !== marker || firstLine[2] !== marker)
+    return ''
+
+  let index = 3
+  while (firstLine[index] === marker)
+    index += 1
+
+  return firstLine.slice(index).trim()
+}
+
+function extractCodeBlockFileLabel(raw: unknown) {
+  const info = parseCodeFenceInfo(getString(raw))
+  if (!info)
+    return ''
+
+  const tokens = info.split(/\s+/).filter(Boolean)
+  if (!tokens.length)
+    return ''
+
+  const candidates = tokens[0] === 'diff' ? tokens.slice(1) : tokens
+  for (const token of candidates) {
+    const value = token.includes(':')
+      ? token.slice(token.indexOf(':') + 1)
+      : token
+    if (value && /[./\\-]/.test(value))
+      return value
+  }
+
+  return ''
+}
+
 @Component({
   selector: 'markstream-angular-code-block-node',
   standalone: true,
@@ -53,7 +89,10 @@ interface MonacoHelpers {
           <span class="icon-slot code-block-language-icon">
             <img class="code-block-language-icon__image" [src]="languageIconDataUrl" alt="" />
           </span>
-          <span class="code-block-header__label">{{ displayLanguage }}</span>
+          <span class="code-header-copy">
+            <span class="code-header-title">{{ headerTitle }}</span>
+            <span *ngIf="headerCaption" class="code-header-caption">{{ headerCaption }}</span>
+          </span>
         </div>
         <div class="code-block-header__actions">
           <button
@@ -175,7 +214,7 @@ interface MonacoHelpers {
         [class.code-block-body--expanded]="expanded"
       >
         <ng-container *ngIf="!showLoadingPlaceholder; else loadingTpl">
-          <markstream-angular-pre-code-node *ngIf="useFallback; else editorTpl" [node]="node" />
+          <markstream-angular-pre-code-node *ngIf="useFallback; else editorTpl" [node]="node" [showLineNumbers]="true" />
 
           <ng-template #editorTpl>
             <div #editorHost class="code-editor-container" [style.visibility]="editorReady ? 'visible' : 'hidden'"></div>
@@ -390,11 +429,23 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   get headerForeground() {
-    return `var(--vscode-editor-foreground, ${this.resolvedIsDark ? '#e5e7eb' : '#111827'})`
+    return `var(--code-action-fg, var(--vscode-editor-foreground, ${this.resolvedIsDark ? '#e5e7eb' : '#111827'}))`
   }
 
   get headerBackground() {
-    return `var(--vscode-editor-background, ${this.resolvedIsDark ? '#111827' : '#ffffff'})`
+    return `var(--code-header-bg, var(--vscode-editor-background, ${this.resolvedIsDark ? '#111827' : '#ffffff'}))`
+  }
+
+  get headerTitle() {
+    return this.fileLabel || this.displayLanguage
+  }
+
+  get headerCaption() {
+    return this.fileLabel ? (this.isDiff ? `Diff / ${this.displayLanguage}` : this.displayLanguage) : ''
+  }
+
+  get fileLabel() {
+    return extractCodeBlockFileLabel((this.node as any)?.raw)
   }
 
   get ariaLabel() {

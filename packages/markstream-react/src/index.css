@@ -549,10 +549,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--ms-gap-header, 0.75rem);
   padding: 0.65rem 0.9rem;
-  background: rgba(15, 23, 42, 0.85);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--code-header-bg, rgba(15, 23, 42, 0.85));
+  border-bottom: 1px solid var(--code-border, rgba(148, 163, 184, 0.2));
+  color: var(--code-action-fg, inherit);
 }
+
+:where(.markstream-react) .code-block-header .code-header-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+:where(.markstream-react) .code-block-header .code-header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+:where(.markstream-react) .code-block-header .code-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-label, 13px);
+  font-weight: 500;
+  color: var(--code-header-title, inherit);
+}
+
+:where(.markstream-react) .code-block-header .code-header-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--code-line-number, var(--markstream-diff-line-number, #6b7280));
+}
+
+:where(.markstream-react) .code-block-header .code-action-btn {
+  color: var(--code-action-fg, inherit);
+}
+
 
 :where(.markstream-react) .code-block-meta {
   display: flex;
@@ -1466,6 +1502,47 @@
   font-family: inherit;
   font-weight: inherit;
 }
+
+/* ── Non-diff line numbers (vue3 parity) ─────────────────────────────────── */
+:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers {
+  position: relative;
+}
+
+:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers > .markstream-pre__line-numbers {
+  position: absolute;
+  top: var(--markstream-pre-line-number-top, 0);
+  left: var(--markstream-pre-line-number-left, 0);
+  box-sizing: content-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: var(--markstream-pre-line-number-width, 2ch);
+  min-width: var(--markstream-pre-line-number-width, 2ch);
+  padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
+  padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid var(--code-bg, var(--markstream-code-fallback-bg));
+  color: var(--code-line-number, var(--markstream-diff-line-number, #6b7280));
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
+  pointer-events: none;
+  user-select: none;
+}
+
+:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers > .markstream-pre__line-numbers > .markstream-pre__line-numbers-text {
+  display: block;
+  min-height: 1lh;
+  text-align: right;
+  white-space: pre;
+}
+
+:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+  box-sizing: border-box;
+  min-width: 100%;
+  padding-left: var(--markstream-code-padding-left, 52px);
+  padding-right: var(--markstream-code-padding-x, 12px);
+}
+
 
 :where(.markstream-react) .code-fallback-plain.markstream-pre--diff-preview {
   box-sizing: border-box;

@@ -179,6 +179,7 @@ import { VmrContainerNodeComponent } from '../VmrContainerNode/VmrContainerNode.
             <markstream-angular-pre-code-node
               *ngIf="codeMode === 'pre'; else enhancedCode"
               [node]="node"
+              [showLineNumbers]="true"
             />
           </ng-template>
           <ng-template #enhancedCode>
