@@ -266,8 +266,10 @@ const fontIncreaseDisabled = computed(() =>
 -->
 <style>
 .action-icon {
-  width: var(--ms-action-btn-icon);
-  height: var(--ms-action-btn-icon);
+  width: var(--ms-action-btn-icon, 0.875rem);
+  height: var(--ms-action-btn-icon, 0.875rem);
+  max-width: 1.25rem;
+  max-height: 1.25rem;
 }
 
 /* ── Container base (shared by all code block variants) ── */
