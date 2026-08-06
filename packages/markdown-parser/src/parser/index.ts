@@ -4096,10 +4096,10 @@ function getSafeMarkdown(md: MarkdownIt, sourceMarkdown: string, isFinal: boolea
   if (
     // Append-only streaming fast path: only the appended tail can introduce
     // new mid-state markers, and the prefix of the previous safe markdown was
-    // already transformed identically. Process a tail window of the RAW
-    // source (with a small overlap for the `\r`-fix boundary) and stitch it
-    // onto the untouched prefix, avoiding O(doc) regex scans on every commit
-    // (quadratic total for long streaming documents).
+    // already transformed identically. Transform a tail window of the RAW
+    // source (old tail margin + appended chunk) and stitch it onto the cached
+    // prefix, avoiding O(doc) regex scans on every commit (quadratic total
+    // for long streaming documents).
     !isFinal
     && !options.customHtmlTags?.length
     && previous
@@ -4107,10 +4107,28 @@ function getSafeMarkdown(md: MarkdownIt, sourceMarkdown: string, isFinal: boolea
     && sourceMarkdown.length >= previous.source.length
     && sourceMarkdown.startsWith(previous.source)
   ) {
-    const prefixCut = Math.max(0, previous.safeMarkdown.length - SAFE_MARKDOWN_WINDOW_MARGIN - SAFE_MARKDOWN_WINDOW_OVERLAP)
-    const window = sourceMarkdown.slice(prefixCut)
+    // The window cut MUST be a raw-source index. The previous implementation
+    // cut `previous.safeMarkdown` at a safeMarkdown index but sliced the raw
+    // source with it: any char-inserting fix earlier in the document (e.g.
+    // `\n(abla|eq|ot|exists)` / `\r(ight|ho)`) made the two index spaces
+    // diverge and silently dropped/repeated chars at the seam.
+    const windowStart = Math.max(0, previous.source.length - SAFE_MARKDOWN_WINDOW_MARGIN - SAFE_MARKDOWN_WINDOW_OVERLAP)
+    const window = sourceMarkdown.slice(windowStart)
     const transformed = transformStreamingSafeMarkdown(window, isFinal, md, options)
-    safeMarkdown = `${previous.safeMarkdown.slice(0, prefixCut)}${transformed}`
+    // Overlap verification: the part of the window that overlaps the previous
+    // source (its first `previous.source.length - windowStart` chars) must be
+    // byte-identical to the previous safe markdown tail. A re-transform of
+    // unchanged source is deterministic, so equality proves the overlap region
+    // had no char-inserting fixes (which would shift the seam) AND that the
+    // appended chunk did not complete a cross-boundary fix (e.g. a trailing
+    // `\r` followed by an appended `ight`). Any divergence falls back to a
+    // full-document transform, which is always correct.
+    const overlapLength = previous.source.length - windowStart
+    const overlapOk = transformed.length >= overlapLength
+      && transformed.slice(0, overlapLength) === previous.safeMarkdown.slice(-overlapLength)
+    safeMarkdown = overlapOk
+      ? previous.safeMarkdown.slice(0, previous.safeMarkdown.length - overlapLength) + transformed
+      : transformStreamingSafeMarkdown(sourceMarkdown, isFinal, md, options)
   }
   else {
     safeMarkdown = transformStreamingSafeMarkdown(sourceMarkdown, isFinal, md, options)
@@ -4296,6 +4314,12 @@ export function processTokens(tokens: MarkdownToken[], options?: ParseOptions): 
   const linkifyContext = createLinkifyDemotionContextTracker(options)
   const seedRaws = (options as InternalParseOptions | undefined)?.__linkifyDemotionSeed
   if (Array.isArray(seedRaws) && seedRaws.length) {
+    // Replay the reused prefix node raws into the demotion tracker. This is a
+    // top-level-node granularity approximation: a full parse remembers raws at
+    // nested granularity too (per-list-item paragraphs etc.). The demotion
+    // heuristics absorb the difference (continuation inheritance + per-block
+    // re-inference), and `test/linkify-seed-granularity.test.ts` pins the
+    // streamed == cold behavior for mixed-feature prefixes.
     for (const raw of seedRaws)
       linkifyContext.remember(String(raw ?? ''))
   }

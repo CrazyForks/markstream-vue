@@ -34,7 +34,7 @@ function stableSignature(value, seen = new Set()) {
   if (value == null || typeof value === 'number' || typeof value === 'boolean')
     return String(value)
   if (typeof value === 'string')
-    return `s:${value.length}:${value.slice(0, 200)}`
+    return `s:${value}`
   if (typeof value === 'function')
     return 'fn'
   if (typeof value !== 'object')
