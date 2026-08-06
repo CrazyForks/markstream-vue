@@ -15,10 +15,10 @@
     "katex": "^0.16.47",
     "markstream-svelte": "workspace:*",
     "mermaid": ">=11.16.0",
+    "stream-diffs": "latest",
     "stream-markdown": "latest",
     "stream-markdown-parser": "workspace:*",
-    "svelte": "^5.56.8",
-    "stream-diffs": "latest"
+    "svelte": "^5.56.8"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.4",

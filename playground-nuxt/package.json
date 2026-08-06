@@ -18,8 +18,8 @@
     "markstream-vue": "workspace:*",
     "mermaid": "^11.16.0",
     "nuxt": "^4.5.1",
+    "stream-diffs": "latest",
     "stream-markdown": "latest",
-    "vue-i18n": "^11.4.8",
-    "stream-diffs": "latest"
+    "vue-i18n": "^11.4.8"
   }
 }

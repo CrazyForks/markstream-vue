@@ -1,4 +1,3 @@
-import type { PluginOption } from 'vite'
 import path from 'node:path'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig } from 'vite'
