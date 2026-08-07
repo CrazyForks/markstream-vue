@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { MarkdownCodeBlockNode } from '../packages/markstream-react/src/components/MarkdownCodeBlockNode/MarkdownCodeBlockNode'
 import {
   getLanguageIcon,
+  languageMap,
   normalizeLanguageIdentifier,
   preloadExtendedLanguageIcons,
 } from '../packages/markstream-react/src/utils/languageIcon'
@@ -18,6 +19,20 @@ describe('markstream-react Vue 3 code header parity', () => {
 
     await preloadExtendedLanguageIcons()
     expect(getLanguageIcon('svelte')).toContain('fill="#ff5722"')
+  })
+
+  it('labels every iconed language with a proper display name', () => {
+    // Header titles come from `languageMap[lang] || capitalize(lang)`; the
+    // labels below must not fall back to the raw identifier (e.g. "Powershell").
+    expect(languageMap.powershell).toBe('PowerShell')
+    expect(languageMap.yaml).toBe('YAML')
+    expect(languageMap.scss).toBe('SCSS')
+    expect(languageMap.sql).toBe('SQL')
+    expect(languageMap.php).toBe('PHP')
+    expect(languageMap.cobol).toBe('COBOL')
+    expect(languageMap.objectivec).toBe('Objective-C')
+    expect(languageMap.objectivecpp).toBe('Objective-C++')
+    expect(languageMap.vbnet).toBe('VB.NET')
   })
 
   it('uses the shared semantic header structure in MarkdownCodeBlockNode', () => {

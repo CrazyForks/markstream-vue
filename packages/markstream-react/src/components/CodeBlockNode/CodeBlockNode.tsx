@@ -1655,6 +1655,7 @@ ${configuredUnsafeCSS}`.trim()
                   node={node}
                   showLineNumbers={effectiveShowLineNumbers}
                   style={preFallbackStyle}
+                  monacoOptions={resolvedMonacoOptions}
                 />
               )
             : (
@@ -1680,6 +1681,7 @@ ${configuredUnsafeCSS}`.trim()
                         node={node as any}
                         showLineNumbers={effectiveShowLineNumbers}
                         style={preFallbackStyle}
+                        monacoOptions={resolvedMonacoOptions}
                       />
                     </div>
                   )}
