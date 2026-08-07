@@ -327,6 +327,7 @@ markstream-angular {
   font-size: 16px;
   font-weight: 400;
   line-height: 28px;
+  tab-size: var(--markstream-pre-tab-size, 4);
 }
 
 .markstream-angular markstream-angular-pre-code-node:not(.code-editor-fallback-surface) > pre[data-markstream-pre='1']:not(.markstream-pre--diff-preview) > code {

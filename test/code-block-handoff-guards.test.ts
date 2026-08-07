@@ -38,7 +38,7 @@ describe('code block handoff guards', () => {
   })
 
   it('aligns the enhanced surface tab stops via --diffs-tab-size where the fallback defaults to 4', () => {
-    for (const source of [vue3Source, vue2Source, reactSource, svelteSource])
+    for (const source of [vue3Source, vue2Source, reactSource, svelteSource, angularSource])
       expect(source).toContain('--diffs-tab-size')
   })
 

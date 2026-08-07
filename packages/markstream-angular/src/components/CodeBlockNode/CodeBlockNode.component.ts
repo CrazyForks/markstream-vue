@@ -784,14 +784,18 @@ ${configuredUnsafeCSS}`.trim(),
     this.syncEditorGeometryVars()
   }
 
-  // Align the enhanced surface's vertical gap with the pre-fallback padding.
-  // stream-diffs/pierre honor `--diffs-gap-block` on the editor host (custom
-  // properties inherit across the pierre shadow boundary). Only set it when
-  // padding is present; the default 8px gap already matches the fallback.
+  // Align the enhanced surface with the pre-fallback geometry. stream-diffs /
+  // pierre honor these CSS variables on the editor host (custom properties
+  // inherit across the pierre shadow boundary):
+  // - `--diffs-tab-size`: fallback defaults to 4, pierre defaults to 2.
+  // - `--diffs-gap-block`: only set when padding is present; the default 8px
+  //   gap already matches the fallback.
   private syncEditorGeometryVars() {
     const host = this.editorHost?.nativeElement
     if (!host)
       return
+    const tabSize = readPositiveCodeMetric(this.resolvedMonacoOptions.tabSize) ?? 4
+    host.style.setProperty('--diffs-tab-size', String(tabSize))
     const rawPadding = this.resolvedMonacoOptions.padding
     const hasConfiguredPadding = Boolean(rawPadding && typeof rawPadding === 'object')
     if (hasConfiguredPadding) {
