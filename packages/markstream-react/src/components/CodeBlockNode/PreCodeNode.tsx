@@ -1,5 +1,6 @@
 import type { PreCodeNodeProps } from '../../types/component-props'
 import React, { useMemo } from 'react'
+import { readPositiveCodeMetric, resolveCodePadding, resolveCodeTypography } from './codeTypography'
 
 type DiffPreviewLineKind = 'context' | 'removed' | 'added' | 'hunk'
 
@@ -319,7 +320,7 @@ function countCodeLines(code: string) {
   return count
 }
 
-export function PreCodeNode({ node, className, diffInline, showLineNumbers, style }: PreCodeNodeProps) {
+export function PreCodeNode({ node, className, diffInline, showLineNumbers, style, monacoOptions }: PreCodeNodeProps) {
   const normalizedLanguage = useMemo(() => normalizeLanguage((node as any)?.language), [node])
   const languageClass = `language-${normalizedLanguage}`
   const ariaLabel = normalizedLanguage ? `Code block: ${normalizedLanguage}` : 'Code block'
@@ -347,6 +348,31 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
     } as React.CSSProperties
   }, [isDiffPreview, showLineNumbers, codeLineCount])
 
+  const resolvedStyle = useMemo<React.CSSProperties>(() => {
+    const enhancedFallback = className?.split(/\s+/).includes('code-fallback-plain') === true
+    const typography = enhancedFallback
+      ? resolveCodeTypography(monacoOptions)
+      : {
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          fontSize: 16,
+          lineHeight: 28,
+        }
+    const padding = enhancedFallback
+      ? resolveCodePadding(monacoOptions, isDiffPreview ? 0 : 8)
+      : { top: 0, bottom: 0 }
+    return {
+      '--markstream-pre-line-number-top': `${padding.top}px`,
+      'fontFamily': typography.fontFamily,
+      'fontSize': `${typography.fontSize}px`,
+      'lineHeight': `${typography.lineHeight}px`,
+      'paddingBottom': `${padding.bottom}px`,
+      'paddingTop': `${padding.top}px`,
+      'tabSize': enhancedFallback ? (readPositiveCodeMetric(monacoOptions?.tabSize) ?? 4) : 2,
+      ...style,
+      ...lineNumberLayoutStyle,
+    } as React.CSSProperties
+  }, [className, isDiffPreview, lineNumberLayoutStyle, monacoOptions, style])
+
   return (
     <pre
       className={[
@@ -356,7 +382,7 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
         isDiffPreview ? 'markstream-pre--diff-preview' : '',
         isDiffPreview && diffInline ? 'markstream-pre--diff-inline' : '',
       ].filter(Boolean).join(' ')}
-      style={lineNumberLayoutStyle ? { ...style, ...lineNumberLayoutStyle } : style}
+      style={resolvedStyle}
       aria-busy={(node as any)?.loading === true}
       aria-label={ariaLabel}
       data-language={normalizedLanguage}

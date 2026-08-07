@@ -1109,24 +1109,28 @@ function previewCode() {
   >
     <div
       v-if="props.showHeader"
-      class="code-block-header flex justify-between items-center px-4 py-2.5 border-b border-gray-400/5"
-      style="color: var(--vscode-editor-foreground, var(--markstream-code-fallback-fg));background-color: var(--vscode-editor-background, var(--markstream-code-fallback-bg));"
+      class="code-block-header"
+      style="color: var(--code-fg, var(--markstream-code-fallback-fg));background-color: var(--code-header-bg, transparent);"
     >
       <!-- left slot / fallback language label -->
       <slot name="header-left">
-        <div class="flex items-center space-x-2 flex-1 overflow-hidden">
+        <div class="code-header-main">
           <span class="icon-slot h-4 w-4 flex-shrink-0" v-html="languageIcon" />
-          <span class="text-sm font-medium font-mono truncate">{{ displayLanguage }}</span>
+          <div class="code-header-copy">
+            <div class="code-header-title">
+              {{ displayLanguage }}
+            </div>
+          </div>
         </div>
       </slot>
 
       <!-- right slot / fallback action buttons -->
       <slot name="header-right">
-        <div class="flex items-center space-x-2">
+        <div class="code-header-actions">
           <button
             v-if="props.showCollapseButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-pressed="isCollapsed"
             @click="toggleHeaderCollapse"
             @mouseenter="onBtnHover($event, isCollapsed ? (t('common.expand') || 'Expand') : (t('common.collapse') || 'Collapse'))"
@@ -1134,12 +1138,12 @@ function previewCode() {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg :style="{ rotate: isCollapsed ? '0deg' : '90deg' }" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18l6-6l-6-6" /></svg>
+            <svg :style="{ rotate: isCollapsed ? '0deg' : '90deg' }" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18l6-6l-6-6" /></svg>
           </button>
           <template v-if="props.showFontSizeButtons && props.enableFontSizeControl">
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="Number.isFinite(codeFontSize) ? codeFontSize <= codeFontMin : false"
               @click="decreaseCodeFont()"
               @mouseenter="onBtnHover($event, t('common.decrease') || 'Decrease')"
@@ -1147,11 +1151,11 @@ function previewCode() {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" /></svg>
             </button>
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
               @click="resetCodeFont()"
               @mouseenter="onBtnHover($event, t('common.reset') || 'Reset')"
@@ -1159,11 +1163,11 @@ function previewCode() {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></g></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></g></svg>
             </button>
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="Number.isFinite(codeFontSize) ? codeFontSize >= codeFontMax : false"
               @click="increaseCodeFont()"
               @mouseenter="onBtnHover($event, t('common.increase') || 'Increase')"
@@ -1171,14 +1175,14 @@ function previewCode() {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7-7v14" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7-7v14" /></svg>
             </button>
           </template>
 
           <button
             v-if="props.showCopyButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-label="copyText ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy')"
             @click="copy"
             @mouseenter="onCopyHover($event)"
@@ -1186,14 +1190,14 @@ function previewCode() {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg v-if="!copyText" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></g></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5" /></svg>
+            <svg v-if="!copyText" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></g></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5" /></svg>
           </button>
 
           <button
             v-if="props.showExpandButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-pressed="isExpanded"
             @click="toggleExpand($event)"
             @mouseenter="onBtnHover($event, isExpanded ? (t('common.collapse') || 'Collapse') : (t('common.expand') || 'Expand'))"
@@ -1201,14 +1205,14 @@ function previewCode() {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="0.75rem" height="0.75rem" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" /></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="0.75rem" height="0.75rem" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" /></svg>
+            <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="0.75rem" height="0.75rem" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" /></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="0.75rem" height="0.75rem" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" /></svg>
           </button>
 
           <button
             v-if="isPreviewable && props.showPreviewButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-label="t('common.preview') || 'Preview'"
             @click="previewCode"
             @mouseenter="onBtnHover($event, t('common.preview') || 'Preview')"
@@ -1216,7 +1220,7 @@ function previewCode() {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg data-v-3d59cc65="" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2.062 12.348a1 1 0 0 1 0-.696a10.75 10.75 0 0 1 19.876 0a1 1 0 0 1 0 .696a10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></g></svg>
+            <svg data-v-3d59cc65="" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M2.062 12.348a1 1 0 0 1 0-.696a10.75 10.75 0 0 1 19.876 0a1 1 0 0 1 0 .696a10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></g></svg>
           </button>
         </div>
       </slot>
@@ -1247,19 +1251,105 @@ function previewCode() {
 <style scoped>
 .code-block-container {
   contain: content;
-  /* 新增：显著减少离屏 codeblock 的布局/绘制与样式计算 */
-  content-visibility: auto;
-  contain-intrinsic-size: 320px 180px;
-  --markstream-code-fallback-bg: #ffffff;
-  --markstream-code-fallback-fg: #111827;
+  /* A fixed intrinsic height briefly collapses visible highlighted blocks to
+     180px on refresh before Shiki content participates in layout. */
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
+  --markstream-code-fallback-bg: var(--code-bg, #fff);
+  --markstream-code-fallback-fg: var(--code-fg, hsl(0 0% 10%));
   --markstream-code-fallback-selection-bg: rgba(0, 0, 0, 0.06);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
 }
 
 .code-block-container.is-dark {
   --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: #e5e7eb;
+  --markstream-code-fallback-fg: var(--code-fg, hsl(0 0% 93%));
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
+}
+
+.code-block-header {
+  box-sizing: content-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-gap-header, 1rem);
+  min-height: 1.75rem;
+  padding: var(--ms-inset-panel-y, 0.375rem) var(--ms-inset-panel-x, 0.625rem);
+  border-bottom: 1px solid var(--code-border, rgb(229 231 235));
+  background: var(--code-header-bg, transparent);
+  color: var(--code-fg, inherit);
+  font-family: var(--ms-font-sans, ui-sans-serif, system-ui, sans-serif);
+  line-height: 1.75;
+}
+
+.code-header-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--ms-gap-header-main, 0.625rem);
+  overflow: hidden;
+}
+
+.code-header-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.code-header-title {
+  overflow: hidden;
+  color: var(--code-action-fg, hsl(0 0% 43%));
+  font-family: inherit;
+  font-size: var(--ms-text-label, 0.75rem);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ms-gap-header-actions, 0.125rem);
+  margin-left: auto;
+}
+
+.code-block-header .code-action-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ms-action-btn-padding, 0.375rem);
+  border-radius: 0.25rem;
+  color: var(--code-action-fg, inherit);
+  line-height: 1;
+}
+
+.code-block-header .code-action-btn:hover {
+  background: var(--code-action-hover-bg);
+  color: var(--code-action-hover-fg);
+}
+
+.code-block-header .action-icon {
+  width: var(--ms-action-btn-icon, 0.875rem);
+  height: var(--ms-action-btn-icon, 0.875rem);
+  max-width: 1.25rem;
+  max-height: 1.25rem;
+}
+
+.icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-slot ::v-deep svg,
+.icon-slot ::v-deep img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .code-block-content {
@@ -1322,17 +1412,16 @@ function previewCode() {
 
 .code-action-btn {
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.code-action-btn:hover {
   opacity: 1;
 }
 
 .code-action-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.code-action-btn:disabled:hover {
+  background-color: transparent;
 }
 
 /* Loading placeholder styles */

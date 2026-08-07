@@ -3485,9 +3485,9 @@ const containerStyle = computed(() => {
       s.minHeight = `${reserved}px`
   }
   if (!isDiff.value) {
-    s.color = 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg))'
-    s.backgroundColor = 'var(--vscode-editor-background, var(--markstream-code-fallback-bg))'
-    s.borderColor = 'var(--markstream-code-border-color)'
+    s.color = 'var(--markstream-code-fallback-fg, var(--code-fg))'
+    s.backgroundColor = 'var(--markstream-code-fallback-bg, var(--code-bg))'
+    s.borderColor = 'var(--markstream-code-border-color, var(--code-border))'
   }
   return s
 })
@@ -4723,8 +4723,8 @@ onUnmounted(() => {
 
 <style scoped>
 .code-block-container {
-  --markstream-code-fallback-bg: var(--code-bg);
-  --markstream-code-fallback-fg: var(--code-fg);
+  --markstream-code-fallback-bg: #fff;
+  --markstream-code-fallback-fg: hsl(0 0% 10%);
   --markstream-code-border-color: var(--code-border);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
   --markstream-code-fallback-selection-bg: var(--code-selection-bg);
@@ -4779,8 +4779,8 @@ onUnmounted(() => {
 }
 
 .code-block-container.is-dark {
-  --markstream-code-fallback-bg: var(--code-bg);
-  --markstream-code-fallback-fg: var(--code-fg);
+  --markstream-code-fallback-bg: #111827;
+  --markstream-code-fallback-fg: hsl(0 0% 93%);
   --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: var(--code-selection-bg);
   --markstream-diff-frame-border: var(--code-border);
@@ -5135,8 +5135,8 @@ pre.code-pre-fallback {
   width: 100%;
   padding: var(--markstream-code-padding-y, 8px) var(--markstream-code-padding-x, 12px);
   padding-left: var(--markstream-code-padding-left, 52px);
-  background: transparent;
-  color: var(--vscode-editor-foreground, inherit);
+  background: var(--markstream-code-fallback-bg, var(--code-bg, #fff));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
   backface-visibility: visible;
   transform: none;
   -webkit-font-smoothing: auto;

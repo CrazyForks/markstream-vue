@@ -79,6 +79,7 @@ type MonacoEditorLayerProps = {
   node: CodeBlockNodeProps['node']
   preFallbackDiffInline: boolean
   preFallbackStyle: OctaneStyle & Record<string, string | number>
+  showLineNumbers: boolean
   stream: boolean
 }
 
@@ -88,6 +89,7 @@ function MonacoEditorLayer({
   node,
   preFallbackDiffInline,
   preFallbackStyle,
+  showLineNumbers,
   stream,
 }: MonacoEditorLayerProps) {
   return (
@@ -106,7 +108,7 @@ function MonacoEditorLayer({
           className="code-fallback-plain m-0"
           diffInline={preFallbackDiffInline}
           node={node}
-          showLineNumbers={Boolean(node.diff)}
+          showLineNumbers={showLineNumbers}
           style={preFallbackStyle}
         />
       </div>
@@ -118,14 +120,18 @@ function readPositiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
-function readMonacoPadding(value: unknown) {
+function readNonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function readMonacoPadding(value: unknown, defaultPadding: number) {
   if (!value || typeof value !== 'object')
-    return { top: 0, bottom: 0 }
+    return { top: defaultPadding, bottom: defaultPadding }
 
   const raw = value as Record<string, unknown>
   return {
-    top: readPositiveNumber(raw.top) ?? 0,
-    bottom: readPositiveNumber(raw.bottom) ?? 0,
+    top: readNonNegativeNumber(raw.top) ?? defaultPadding,
+    bottom: readNonNegativeNumber(raw.bottom) ?? defaultPadding,
   }
 }
 
@@ -236,6 +242,10 @@ function resolveCodeBlockMonacoOptions(isDiff: boolean, monacoOptions: CodeBlock
   }
 }
 
+function getDisplayCode(code: unknown) {
+  return String(code ?? '').replace(/\r\n$|\n$|\r$/, '')
+}
+
 function getThemeName(theme: any) {
   if (typeof theme === 'string')
     return theme
@@ -286,6 +296,14 @@ function getColorLuminance(color: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+function isTransparentColor(color: string) {
+  const normalized = String(color ?? '').trim().toLowerCase()
+  if (!normalized || normalized === 'transparent')
+    return true
+  const channels = normalized.match(/rgba?\(([^)]+)\)/)?.[1]?.split(/[\s,/]+/).filter(Boolean)
+  return channels?.length === 4 && Number(channels[3]) === 0
+}
+
 function shouldPreferPlainTextFallbackSurface(bg: string, fg: string, isPlainTextLanguage: boolean, expectDark: boolean) {
   if (!isPlainTextLanguage)
     return false
@@ -323,6 +341,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     showPreviewButton,
     showCollapseButton,
     showFontSizeButtons,
+    showLineNumbers,
     showTooltips,
   } = props
 
@@ -342,6 +361,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
   const structuralSignatureRef = useRef<string | null>(null)
   const editorHeightSyncDisposablesRef = useRef<any[]>([])
   const diffDomHeightObserverRef = useRef<MutationObserver | null>(null)
+  const editorRevealFloorRef = useRef<number | null>(null)
   const expandedRef = useRef(false)
   const failedMonacoLanguageRef = useRef<string | undefined>(undefined)
 
@@ -375,6 +395,10 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
   })
   const [fontSize, setFontSize] = useState(defaultFontSize)
   const tooltipsEnabled = useMemo(() => showTooltips !== false, [showTooltips])
+  const resolvedShowLineNumbers = useMemo(
+    () => showLineNumbers !== false || Boolean(node.diff),
+    [node.diff, showLineNumbers],
+  )
 
   const getMaxHeightValue = useCallback((): number => {
     const raw = (monacoOptionsRef.current as any)?.MAX_HEIGHT ?? 500
@@ -451,11 +475,36 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
 
     const first = window.requestAnimationFrame(() => {
       applyEditorHeight(nextExpanded)
-      window.requestAnimationFrame(() => applyEditorHeight(nextExpanded))
+      window.requestAnimationFrame(() => {
+        applyEditorHeight(nextExpanded)
+        const host = editorHostRef.current
+        if (host && editorRevealFloorRef.current != null) {
+          host.style.minHeight = '0px'
+          editorRevealFloorRef.current = null
+        }
+      })
     })
     window.setTimeout(() => applyEditorHeight(nextExpanded), 180)
     return () => window.cancelAnimationFrame(first)
   }, [applyEditorHeight])
+
+  const prepareEditorReveal = useCallback(() => {
+    const host = editorHostRef.current
+    const fallback = containerRef.current?.querySelector('.code-editor-fallback-surface') as HTMLElement | null
+    if (!host || !fallback)
+      return
+    const fallbackHeight = fallback.getBoundingClientRect().height
+    if (!Number.isFinite(fallbackHeight) || fallbackHeight <= 0)
+      return
+    editorRevealFloorRef.current = fallbackHeight
+    host.style.minHeight = `${Math.ceil(fallbackHeight)}px`
+  }, [])
+
+  const waitForAnimationFrame = useCallback(() => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function')
+      return Promise.resolve()
+    return new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+  }, [])
 
   const clearEditorHeightSyncBindings = useCallback(() => {
     for (const disposable of editorHeightSyncDisposablesRef.current) {
@@ -544,6 +593,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     createEditorPromiseRef.current = null
     editorKindRef.current = null
     editorMountElRef.current = null
+    editorRevealFloorRef.current = null
     setEditorReady(false)
     setEditorCreated(false)
   }, [clearEditorHeightSyncBindings])
@@ -553,10 +603,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     const rootEl = containerRef.current
     if (!editorEl || !rootEl)
       return
+
+    rootEl.style.removeProperty('--vscode-editor-foreground')
+    rootEl.style.removeProperty('--vscode-editor-background')
+    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
     if (node.diff) {
-      rootEl.style.removeProperty('--vscode-editor-foreground')
-      rootEl.style.removeProperty('--vscode-editor-background')
-      rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+      editorEl.style.removeProperty('--vscode-editor-foreground')
+      editorEl.style.removeProperty('--vscode-editor-background')
+      editorEl.style.removeProperty('--vscode-editor-selectionBackground')
       return
     }
     const src = (editorEl.querySelector('.monaco-editor') as HTMLElement | null) ?? editorEl
@@ -566,22 +620,31 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
         : null
       const fg = String(styles?.getPropertyValue('--vscode-editor-foreground') ?? '').trim()
         || String((styles as any)?.color ?? '').trim()
-      const bg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
-        || String((styles as any)?.backgroundColor ?? '').trim()
+      const themeBg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
+      const computedBg = String((styles as any)?.backgroundColor ?? '').trim()
+      const bg = !isTransparentColor(themeBg)
+        ? themeBg
+        : (!isTransparentColor(computedBg) ? computedBg : '')
       const sel = String(styles?.getPropertyValue('--vscode-editor-selectionBackground') ?? '').trim()
       const isPlainTextLanguage = resolveMonacoLanguageId(String(node.language || codeLanguage || detectedLanguage || 'plaintext')) === 'plaintext'
       if (shouldPreferPlainTextFallbackSurface(bg, fg, isPlainTextLanguage, rootEl.classList.contains('is-dark'))) {
-        rootEl.style.removeProperty('--vscode-editor-foreground')
-        rootEl.style.removeProperty('--vscode-editor-background')
-        rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+        editorEl.style.removeProperty('--vscode-editor-foreground')
+        editorEl.style.removeProperty('--vscode-editor-background')
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
         return
       }
       if (fg)
-        rootEl.style.setProperty('--vscode-editor-foreground', fg)
+        editorEl.style.setProperty('--vscode-editor-foreground', fg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-foreground')
       if (bg)
-        rootEl.style.setProperty('--vscode-editor-background', bg)
+        editorEl.style.setProperty('--vscode-editor-background', bg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-background')
       if (sel)
-        rootEl.style.setProperty('--vscode-editor-selectionBackground', sel)
+        editorEl.style.setProperty('--vscode-editor-selectionBackground', sel)
+      else
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
     }
     catch {}
   }, [codeLanguage, detectedLanguage, node.diff, node.language])
@@ -631,6 +694,10 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     () => (node.diff ? effectiveDiffAppearance === 'dark' : resolvedChromeIsDark),
     [effectiveDiffAppearance, node.diff, resolvedChromeIsDark],
   )
+  const resolvedShellIsDark = useMemo(
+    () => (node.diff ? effectiveDiffAppearance === 'dark' : Boolean(isDark)),
+    [effectiveDiffAppearance, isDark, node.diff],
+  )
 
   const preFallbackMetrics = useMemo(() => {
     const raw = resolvedMonacoOptions as Record<string, unknown> | null | undefined
@@ -641,8 +708,8 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
         : Math.max(12, Math.round(resolvedFontSize * 1.5)))
     const fontFamily = typeof raw?.fontFamily === 'string' && raw.fontFamily.trim()
       ? raw.fontFamily.trim()
-      : undefined
-    const padding = readMonacoPadding(raw?.padding)
+      : 'Menlo, Monaco, "Courier New", monospace'
+    const padding = readMonacoPadding(raw?.padding, node.diff ? 0 : 8)
     const tabSize = readPositiveNumber(raw?.tabSize) ?? 4
 
     return {
@@ -653,7 +720,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       paddingTop: padding.top,
       tabSize,
     }
-  }, [fontSize, resolvedMonacoOptions])
+  }, [fontSize, node.diff, resolvedMonacoOptions])
 
   const preFallbackDiffInline = useMemo(() => {
     if (!node.diff)
@@ -673,9 +740,9 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       'paddingBottom': `${preFallbackMetrics.paddingBottom}px`,
       'paddingTop': `${preFallbackMetrics.paddingTop}px`,
       'tabSize': preFallbackMetrics.tabSize,
+      '--markstream-code-font-family': preFallbackMetrics.fontFamily,
+      'fontFamily': preFallbackMetrics.fontFamily,
     }
-    if (preFallbackMetrics.fontFamily)
-      style.fontFamily = preFallbackMetrics.fontFamily
     return style
   }, [preFallbackMetrics])
 
@@ -686,23 +753,20 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       themes,
       ...(resolvedMonacoOptions || {}),
       theme: requestedTheme,
+      lineNumbers: resolvedShowLineNumbers,
+      fontSize: preFallbackMetrics.fontSize,
+      lineHeight: preFallbackMetrics.lineHeight,
+      padding: { top: preFallbackMetrics.paddingTop, bottom: preFallbackMetrics.paddingBottom },
+      tabSize: preFallbackMetrics.tabSize,
+      fontFamily: preFallbackMetrics.fontFamily,
       ...(node.diff ? { diffAppearance: effectiveDiffAppearance } : {}),
       onThemeChange() {
         syncEditorCssVars()
       },
     } as Record<string, any>
 
-    if (node.diff) {
-      nextOptions.fontSize ??= preFallbackMetrics.fontSize
-      nextOptions.lineHeight ??= preFallbackMetrics.lineHeight
-      nextOptions.padding ??= { top: preFallbackMetrics.paddingTop, bottom: preFallbackMetrics.paddingBottom }
-      nextOptions.tabSize ??= preFallbackMetrics.tabSize
-      if (preFallbackMetrics.fontFamily)
-        nextOptions.fontFamily ??= preFallbackMetrics.fontFamily
-    }
-
     return nextOptions
-  }, [effectiveDiffAppearance, node.diff, preFallbackMetrics, requestedTheme, resolvedMonacoOptions, syncEditorCssVars, themes])
+  }, [effectiveDiffAppearance, node.diff, preFallbackMetrics, requestedTheme, resolvedMonacoOptions, resolvedShowLineNumbers, syncEditorCssVars, themes])
 
   const syncRuntimeMonacoOptions = useCallback(() => {
     const nextOptions = buildRuntimeMonacoOptions()
@@ -883,21 +947,21 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       style.borderColor = 'var(--markstream-diff-shell-border)'
     }
     else {
-      style.color = `var(--vscode-editor-foreground, ${resolvedSurfaceIsDark ? '#e5e7eb' : '#111827'})`
-      style.backgroundColor = `var(--vscode-editor-background, ${resolvedSurfaceIsDark ? '#111827' : '#ffffff'})`
-      style.borderColor = resolvedSurfaceIsDark ? 'rgb(55 65 81 / 0.3)' : 'rgb(229 231 235)'
+      style.color = 'var(--markstream-code-fallback-fg, var(--code-fg))'
+      style.backgroundColor = 'var(--markstream-code-fallback-bg, var(--code-bg, #fff))'
+      style.borderColor = resolvedShellIsDark ? 'rgb(55 65 81 / 0.3)' : 'rgb(229 231 235)'
     }
     return style
-  }, [maxWidth, minWidth, node.diff, resolvedSurfaceIsDark])
+  }, [maxWidth, minWidth, node.diff, resolvedShellIsDark])
 
   const headerStyle = useMemo<OctaneStyle | undefined>(() => {
     if (node.diff)
       return undefined
     return {
-      color: `var(--vscode-editor-foreground, ${resolvedSurfaceIsDark ? '#e5e7eb' : '#111827'})`,
-      backgroundColor: `var(--vscode-editor-background, ${resolvedSurfaceIsDark ? '#111827' : '#ffffff'})`,
+      color: 'var(--markstream-code-fallback-fg, var(--code-fg))',
+      backgroundColor: 'var(--markstream-code-fallback-bg, var(--code-bg, #fff))',
     }
-  }, [node.diff, resolvedSurfaceIsDark])
+  }, [node.diff])
 
   const hasStreamingCode = useMemo(() => {
     return node.code.length > 0
@@ -1003,19 +1067,19 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
             editorKindRef.current = 'diff'
             await helpers.createDiffEditor(
               el,
-              String(currentNode.originalCode ?? ''),
-              String(currentNode.updatedCode ?? ''),
+              getDisplayCode(currentNode.originalCode),
+              getDisplayCode(currentNode.updatedCode),
               lang,
             )
           }
           else {
             editorKindRef.current = 'single'
-            await helpers.createEditor(el, String(currentNode.updatedCode ?? currentNode.code ?? ''), lang)
+            await helpers.createEditor(el, getDisplayCode(currentNode.updatedCode ?? currentNode.code), lang)
           }
         }
         else {
           editorKindRef.current = 'single'
-          await helpers.createEditor(el, String(currentNode.code ?? ''), lang)
+          await helpers.createEditor(el, getDisplayCode(currentNode.code), lang)
         }
         editorMountElRef.current = el
 
@@ -1037,9 +1101,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
 
         bindDiffEditorHeightSync()
         syncEditorCssVars()
-        if (!expanded && !collapsed)
-          scheduleEditorHeightSync(false)
+        prepareEditorReveal()
+        applyEditorHeight(expanded)
+        await waitForAnimationFrame()
+        if (editorLifecycleIdRef.current !== creationId)
+          return
+        applyEditorHeight(expanded)
         setEditorReady(true)
+        scheduleEditorHeightSync(expanded)
       }
       catch {
         if (editorLifecycleIdRef.current === creationId) {
@@ -1055,7 +1124,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     })
     createEditorPromiseRef.current = tracked
     return tracked
-  }, [bindDiffEditorHeightSync, clearEditorHeightSyncBindings, collapsed, expanded, monacoLanguage, scheduleEditorHeightSync, shouldDelayEditor, syncEditorCssVars, syncRuntimeMonacoOptions, useFallback, viewportReady])
+  }, [applyEditorHeight, bindDiffEditorHeightSync, clearEditorHeightSyncBindings, collapsed, expanded, monacoLanguage, prepareEditorReveal, scheduleEditorHeightSync, shouldDelayEditor, syncEditorCssVars, syncRuntimeMonacoOptions, useFallback, viewportReady, waitForAnimationFrame])
 
   useEffect(() => {
     syncRuntimeMonacoOptions()
@@ -1137,7 +1206,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
     if (!helpers)
       return
 
-    const newCode = String(node.code ?? '')
+    const newCode = getDisplayCode(node.diff ? (node.updatedCode ?? node.code) : node.code)
     const run = async () => {
       let langToken = codeLanguage
       if (!langToken && detectLanguageRef.current) {
@@ -1166,7 +1235,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
 
       try {
         if (node.diff && helpers.updateDiff) {
-          await Promise.resolve(helpers.updateDiff(String(node.originalCode ?? ''), String(node.updatedCode ?? ''), lang))
+          await Promise.resolve(helpers.updateDiff(getDisplayCode(node.originalCode), getDisplayCode(node.updatedCode), lang))
         }
         else if (helpers.updateCode) {
           await Promise.resolve(helpers.updateCode(newCode, lang))
@@ -1298,9 +1367,9 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
       ref={containerRef}
       className={[
         'code-block-container my-4 rounded-lg border overflow-hidden shadow-sm',
-        resolvedSurfaceIsDark ? 'border-gray-700/30 bg-gray-900' : 'border-gray-200 bg-white',
+        resolvedShellIsDark ? 'border-gray-700/30' : 'border-gray-200',
         loading ? 'is-rendering' : '',
-        resolvedSurfaceIsDark ? 'is-dark' : '',
+        resolvedShellIsDark ? 'is-dark' : '',
         node.diff ? 'is-diff' : '',
         isPlainTextLanguage ? 'is-plain-text' : '',
       ].join(' ')}
@@ -1547,7 +1616,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
                   className="code-fallback-plain m-0"
                   diffInline={preFallbackDiffInline}
                   node={node}
-                  showLineNumbers={Boolean(node.diff)}
+                  showLineNumbers={resolvedShowLineNumbers}
                   style={preFallbackStyle}
                 />
               )
@@ -1558,6 +1627,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeOctane
                   node={node}
                   preFallbackDiffInline={preFallbackDiffInline}
                   preFallbackStyle={preFallbackStyle}
+                  showLineNumbers={resolvedShowLineNumbers}
                   stream={stream}
                 />
               )

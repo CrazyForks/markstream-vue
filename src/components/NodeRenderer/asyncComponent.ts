@@ -193,7 +193,7 @@ export const CodeBlockNodeLoading = defineComponent({
         'disabled': true,
         'tabindex': -1,
         'type': 'button',
-      }, [h('svg', { class: 'action-icon' })])
+      }, [h('svg', { class: 'action-icon', width: '14', height: '14' })])
       const isPreviewable = props.isShowPreview !== false && (language === 'html' || language === 'svg')
       const showOverflowPlaceholder = (props.showFontSizeButtons !== false && props.enableFontSizeControl !== false)
         || props.showExpandButton !== false
@@ -210,7 +210,7 @@ export const CodeBlockNodeLoading = defineComponent({
         ...(!isDiff
           ? {
               color: 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg, var(--code-fg)))',
-              backgroundColor: 'var(--vscode-editor-background, var(--markstream-code-fallback-bg, var(--code-bg)))',
+              backgroundColor: 'var(--markstream-code-fallback-bg, var(--code-bg, #fff))',
               borderColor: 'var(--markstream-code-border-color, var(--code-border))',
             }
           : {}),
@@ -239,14 +239,61 @@ export const CodeBlockNodeLoading = defineComponent({
         props.showHeader === false
           ? null
           : h('div', {
+              // Keep critical header geometry inline: CodeBlockShell CSS belongs to
+              // the async chunk and is unavailable during this loading fallback.
               class: 'code-block-header flex justify-between items-center border-b px-[var(--ms-inset-panel-x)] py-[var(--ms-inset-panel-y)] border-[var(--code-border)] bg-[var(--code-header-bg)] text-[var(--code-fg)]',
             }, [
-              h('div', { class: 'code-header-main' }, [
-                h('span', { class: 'icon-slot h-4 w-4 flex-shrink-0' }),
-                h('div', { class: 'code-header-copy' }, [
-                  h('div', { class: 'code-header-title' }, header.title),
+              h('div', {
+                class: 'code-header-main',
+                style: {
+                  minWidth: 0,
+                  flex: '1 1 auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--ms-gap-header-main, 0.625rem)',
+                  overflow: 'hidden',
+                },
+              }, [
+                h('span', {
+                  'class': 'icon-slot h-4 w-4 flex-shrink-0',
+                  'aria-hidden': 'true',
+                  'style': {
+                    display: 'inline-flex',
+                    width: '1rem',
+                    height: '1rem',
+                    flex: '0 0 auto',
+                  },
+                }),
+                h('div', {
+                  class: 'code-header-copy',
+                  style: {
+                    minWidth: 0,
+                    display: 'grid',
+                    gap: '2px',
+                  },
+                }, [
+                  h('div', {
+                    class: 'code-header-title',
+                    style: {
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: 'var(--ms-text-label, 0.75rem)',
+                      fontWeight: '500',
+                      color: 'var(--code-action-fg)',
+                    },
+                  }, header.title),
                   header.caption
-                    ? h('div', { class: 'code-header-caption' }, header.caption)
+                    ? h('div', {
+                        class: 'code-header-caption',
+                        style: {
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.75rem',
+                          color: 'var(--code-line-number)',
+                        },
+                      }, header.caption)
                     : null,
                 ]),
               ]),

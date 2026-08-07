@@ -881,6 +881,11 @@ function getDiffLineStyle(index: number, side: 'original' | 'modified') {
   display: block;
 }
 
+.markstream-vue pre[data-markstream-pre='1']:not(.markstream-pre--diff-preview) {
+  background: var(--code-bg);
+  color: var(--code-fg);
+}
+
 .markstream-vue pre.markstream-pre--line-numbers {
   position: relative;
 }
@@ -926,7 +931,7 @@ function getDiffLineStyle(index: number, side: 'original' | 'modified') {
   min-width: var(--markstream-pre-line-number-width, 2ch);
   padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
   padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
-  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid var(--code-bg);
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
   color: var(--code-line-number);
   font: inherit;
   font-variant-numeric: tabular-nums;

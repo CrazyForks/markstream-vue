@@ -5,6 +5,7 @@ import { NodeRenderer, setCustomComponents, setKaTeXWorker, setMermaidWorker } f
 import KatexWorker from 'markstream-react/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'markstream-react/workers/mermaidParser.worker?worker&inline'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LineNumberHandoffCheck } from '../../playground-react18/src/shared/LineNumberHandoffCheck'
 import { PLAYGROUND_CUSTOM_HTML_TAGS, PLAYGROUND_CUSTOM_ID } from '../../playground-react18/src/shared/markstreamPlayground'
 import { CUSTOM_STREAM_PRESET_ID, findMatchingStreamPreset, getStreamPreset, STREAM_PRESETS } from '../../playground-react18/src/shared/streamPresets'
 import { TestLab } from '../../playground-react18/src/shared/TestLab'
@@ -238,6 +239,7 @@ export default function App() {
   const isCompactSettings = useMediaQuery('(max-width: 1023px)')
   const shouldShowSettingsPanel = !isCompactSettings || showSettings
   const isTestPage = currentPath === '/test'
+  const isLineNumberHandoffCheck = currentPath === '/line-number-handoff-check'
 
   useChatAutoScroll(messagesRef, content)
 
@@ -363,13 +365,13 @@ export default function App() {
   }, [isCompactSettings])
 
   useEffect(() => {
-    if (isTestPage)
+    if (isTestPage || isLineNumberHandoffCheck)
       return
     startStreamSimulation()
     return () => {
       stopStreamSimulation()
     }
-  }, [isTestPage, startStreamSimulation, stopStreamSimulation])
+  }, [isLineNumberHandoffCheck, isTestPage, startStreamSimulation, stopStreamSimulation])
 
   const goToTest = () => {
     navigate('/test')
@@ -392,6 +394,9 @@ export default function App() {
 
   if (isTestPage)
     return <TestLab frameworkLabel="React 19" onGoHome={() => navigate('/')} />
+
+  if (isLineNumberHandoffCheck)
+    return <LineNumberHandoffCheck />
 
   return (
     <div className="markstream-vue h-full">

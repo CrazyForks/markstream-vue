@@ -7,8 +7,9 @@
   import { hideTooltip, showTooltipForAnchor } from '../tooltip/singletonTooltip'
   import { getLanguageIcon, isLikelyIncompleteLanguageIdentifier, languageMap, normalizeLanguageIdentifier, resolveMonacoLanguageId } from '../utils/languageIcon'
   import HtmlPreviewFrame from './HtmlPreviewFrame.svelte'
+  import PreCodeNode from './PreCodeNode.svelte'
   import { copyTextToClipboard, resolveCssSize } from './shared/rich-block-helpers'
-  import { getString, sanitizeClassToken } from './shared/node-helpers'
+  import { getString } from './shared/node-helpers'
 
   type Props = {
     node: SvelteRenderableNode
@@ -30,6 +31,7 @@
     showPreviewButton?: boolean
     showCollapseButton?: boolean
     showFontSizeButtons?: boolean
+    showLineNumbers?: boolean
     htmlPreviewAllowScripts?: boolean
     htmlPreviewSandbox?: string | undefined
   }
@@ -54,6 +56,7 @@
     showPreviewButton = true,
     showCollapseButton = true,
     showFontSizeButtons = true,
+    showLineNumbers = true,
     htmlPreviewAllowScripts = false,
     htmlPreviewSandbox = undefined
   }: Props = $props()
@@ -72,6 +75,7 @@
     revealLineCount: 0,
   })
   const streamingLanguageTokens = ['javascript', 'plaintext', 'shellscript', 'typescript']
+  const defaultPreFallbackFontFamily = '"SF Mono", Monaco, Consolas, "Ubuntu Mono", "Liberation Mono", "Courier New", monospace'
 
   function resolveRecoverableFallbackLanguage(error: unknown) {
     const message = error instanceof Error ? error.message : String(error ?? '')
@@ -129,13 +133,16 @@
   let useFallback = $state(false)
   let fallbackLanguage = $state('')
   let editorKind: 'single' | 'diff' | null = $state(null)
+  let editorStreamMode: boolean | null = $state(null)
+  let editorRevealed = $state(false)
+  let fallbackRetired = $state(false)
   let createEditorPromise: Promise<void> | null = $state(null)
   let mounted = $state(false)
   let collapsed = $state(false)
   let expanded = $state(false)
   let copied = $state(false)
   let previewOpen = $state(false)
-  let codeFontSize = $state(13)
+  let codeFontSize = $state(12)
   let copyTimer: ReturnType<typeof setTimeout> | null = $state(null)
   let lifecycleId = $state(0)
   let heightSyncRaf: number | null = $state(null)
@@ -171,7 +178,7 @@
       : lightTheme ?? resolvedThemes?.lightTheme,
     resolvedIsDark ? 'vitesse-dark' : 'vitesse-light',
   ))
-  let defaultCodeFontSize = $derived(Number(mergedMonacoOptions.fontSize) || 13)
+  let defaultCodeFontSize = $derived(Number(mergedMonacoOptions.fontSize) || 12)
   let minWidthValue = $derived(resolveCssSize(minWidth ?? resolvedThemes?.minWidth))
   let maxWidthValue = $derived(resolveCssSize(maxWidth ?? resolvedThemes?.maxWidth))
   let containerStyle = $derived([
@@ -186,9 +193,12 @@
   let documentStreaming = $derived(context?.final === false || resolvedLoading)
   let shouldDeferStreamingLanguage = $derived(resolvedStream !== false && documentStreaming && (isLikelyIncompleteLanguageIdentifier(rawLanguage) || isStreamingLanguagePrefix(rawLanguage)))
   let shouldRender = $derived(!(resolvedLoading && !code.trim()))
-  let preLanguageClass = $derived(sanitizeClassToken(rawLanguage || monacoLanguage))
-  let showPreWhileMonacoLoads = $derived(!useFallback && !shouldDelayEditor && !shouldDeferStreamingLanguage && !editorReady)
-  let showPreFallback = $derived(useFallback || shouldDelayEditor || shouldDeferStreamingLanguage || showPreWhileMonacoLoads)
+  let preFallbackNode = $derived({
+    ...(node as any),
+    code,
+    loading: resolvedLoading,
+  } as SvelteRenderableNode)
+  let preFallbackStyle = $derived(buildPreFallbackStyle())
   let settledRefreshSignature = $derived(diff
     ? `${monacoLanguage}\0${originalCode}\0${updatedCode || code}`
     : `${monacoLanguage}\0${code}`)
@@ -258,6 +268,58 @@
     return getString((sourceNode as any)?.code)
   }
 
+  function readPositiveMetric(value: unknown) {
+    const number = Number(value)
+    return Number.isFinite(number) && number > 0 ? number : undefined
+  }
+
+  function readNonNegativeMetric(value: unknown) {
+    const number = Number(value)
+    return Number.isFinite(number) && number >= 0 ? number : undefined
+  }
+
+  function getCodeLineHeight() {
+    return readPositiveMetric(mergedMonacoOptions.lineHeight)
+      ?? (codeFontSize === 12 ? 18 : Math.max(12, Math.round(codeFontSize * 1.5)))
+  }
+
+  function getCodePadding() {
+    const padding = mergedMonacoOptions.padding as Record<string, unknown> | undefined
+    const defaultPadding = diff ? 0 : 8
+    return {
+      top: readNonNegativeMetric(padding?.top) ?? defaultPadding,
+      bottom: readNonNegativeMetric(padding?.bottom) ?? defaultPadding,
+    }
+  }
+
+  function getCodeFontFamily() {
+    return typeof mergedMonacoOptions.fontFamily === 'string' && mergedMonacoOptions.fontFamily.trim()
+      ? mergedMonacoOptions.fontFamily.trim()
+      : defaultPreFallbackFontFamily
+  }
+
+  function buildPreFallbackStyle() {
+    const padding = getCodePadding()
+    const fontFamily = getCodeFontFamily()
+    const tabSize = readPositiveMetric(mergedMonacoOptions.tabSize) ?? 4
+    const lineHeight = getCodeLineHeight()
+    return [
+      `--markstream-code-font-family: ${fontFamily}`,
+      `--vscode-editor-font-size: ${codeFontSize}px`,
+      `--vscode-editor-line-height: ${lineHeight}px`,
+      `--markstream-code-padding-y: ${padding.top}px`,
+      `--markstream-pre-line-number-top: ${padding.top}px`,
+      `font-family: ${fontFamily}`,
+      `font-size: ${codeFontSize}px`,
+      `line-height: ${lineHeight}px`,
+      `padding-top: ${padding.top}px`,
+      `padding-right: var(--markstream-code-padding-x, 12px)`,
+      `padding-bottom: ${padding.bottom}px`,
+      `padding-left: var(--markstream-code-padding-left, 52px)`,
+      `tab-size: ${tabSize}`,
+    ].join('; ')
+  }
+
   function getThemeName(theme: CodeBlockMonacoTheme | undefined, fallback: string) {
     if (typeof theme === 'string' && theme)
       return theme
@@ -306,9 +368,23 @@
       wrappingIndent: 'same',
       revealDebounceMs: 75,
     }
+    const padding = getCodePadding()
+    const configuredUnsafeCSS = typeof raw.unsafeCSS === 'string' ? raw.unsafeCSS : ''
+    const unsafeCSS = `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim()
     const finalOptions = {
       MAX_HEIGHT: maxHeight,
+      fontFamily: getCodeFontFamily(),
       fontSize: codeFontSize,
+      lineHeight: getCodeLineHeight(),
+      lineNumbers: showLineNumbers === false ? 'off' : 'on',
+      padding,
+      unsafeCSS,
+      // The component owns the streaming fallback and file header. Initialize
+      // stream-diffs in final mode so the revealed surface has highlighting,
+      // line numbers, and the same geometry as the fallback.
+      disableFileHeader: true,
+      stream: false,
       themes: buildThemeList(),
     }
 
@@ -408,6 +484,7 @@
       }
 
       helpers = mod.useMonaco(syncRuntimeMonacoOptions())
+      await Promise.resolve(helpers.setTheme?.(requestedTheme))
       lastThemeRequest = requestedTheme
     })().finally(() => {
       ensureMonacoPromise = null
@@ -439,8 +516,9 @@
       ? Boolean(helpers.getDiffEditorView?.())
       : Boolean(helpers.getEditorView?.())
     const hasEditor = hasEditorView && hasRenderedEditorDom(desiredKind)
+    const desiredStreamMode = false
 
-    if (!hasEditor || editorKind !== desiredKind) {
+    if (!hasEditor || editorKind !== desiredKind || editorStreamMode !== desiredStreamMode) {
       await recreateEditor(desiredKind)
       if (!mounted || useFallback || !helpers)
         return
@@ -467,9 +545,66 @@
   function hasRenderedEditorDom(kind: 'single' | 'diff') {
     if (!editorHost)
       return false
-    return kind === 'diff'
-      ? Boolean(editorHost.querySelector('.monaco-diff-editor'))
-      : Boolean(editorHost.querySelector('.monaco-editor'))
+    if (kind === 'diff') {
+      return Boolean(editorHost.querySelector([
+        '.monaco-diff-editor',
+        'diffs-container',
+        '.stream-diffs-shell',
+        '[data-stream-diffs-state]',
+      ].join(',')))
+    }
+    return Boolean(editorHost.querySelector([
+      '.monaco-editor',
+      'diffs-container',
+      '.stream-diffs-shell',
+      '[data-stream-diffs-state]',
+    ].join(',')))
+  }
+
+  function getVisualEditorSurface() {
+    return editorHost?.querySelector<HTMLElement>([
+      '.monaco-diff-editor',
+      '.monaco-editor',
+      'diffs-container',
+      '[data-stream-diffs-state]',
+      '.stream-diffs-shell',
+    ].join(',')) ?? null
+  }
+
+  function isEditorVisuallyReady(kind: 'single' | 'diff', requireRevealed = false) {
+    if (!editorHost || !hasRenderedEditorDom(kind))
+      return false
+    if (requireRevealed) {
+      const hostStyle = window.getComputedStyle(editorHost)
+      if (hostStyle.display === 'none' || hostStyle.visibility === 'hidden' || Number.parseFloat(hostStyle.opacity || '1') <= 0.01)
+        return false
+    }
+    const surface = getVisualEditorSurface()
+    if (!surface)
+      return false
+    const rect = surface.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0)
+      return false
+    const style = window.getComputedStyle(surface)
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number.parseFloat(style.opacity || '1') > 0.01
+  }
+
+  async function prepareEditorHandoff(kind: 'single' | 'diff', creationId: number) {
+    await tick()
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (!mounted || !editorHost || lifecycleId !== creationId)
+        return false
+      syncEditorHostHeight(true)
+      await nextAnimationFrame()
+      if (isEditorVisuallyReady(kind)) {
+        syncEditorHostHeight(true)
+        await nextAnimationFrame()
+        return isEditorVisuallyReady(kind)
+      }
+    }
+    return false
   }
 
   async function recreateEditor(kind: 'single' | 'diff') {
@@ -487,6 +622,7 @@
         lastLayoutWidth = null
         lastLayoutHeight = null
 
+        editorStreamMode = false
         if (kind === 'diff' && typeof helpers.createDiffEditor === 'function') {
           await helpers.createDiffEditor(editorHost, originalCode, updatedCode || code, monacoLanguage)
           await Promise.resolve(helpers.updateDiff?.(originalCode, updatedCode || code, monacoLanguage))
@@ -498,10 +634,17 @@
           editorKind = 'single'
         }
         applyEditorOptions()
-        editorReady = true
         bindEditorHeightSync()
-        scheduleEditorHeightSync()
         queueThemeSync()
+        if (!await prepareEditorHandoff(kind, creationId))
+          return
+        // Apply the reveal and fallback retirement in one Svelte render. The
+        // editor surface has already passed the hidden-host readiness check, so
+        // the browser never paints an intermediate frame with neither layer.
+        editorRevealed = true
+        fallbackRetired = true
+        editorReady = true
+        scheduleEditorHeightSync()
       }
       catch (error) {
         if (mounted) {
@@ -583,6 +726,9 @@
     }
     catch {}
     editorKind = null
+    editorStreamMode = null
+    editorRevealed = false
+    fallbackRetired = false
     editorReady = false
     lastLayoutWidth = null
     lastLayoutHeight = null
@@ -735,8 +881,8 @@
     heightSyncDisposables = []
   }
 
-  function syncEditorHostHeight() {
-    if (!editorHost || !helpers || !editorReady || collapsed)
+  function syncEditorHostHeight(preparing = false) {
+    if (!editorHost || !helpers || (!editorReady && !preparing) || collapsed)
       return
 
     const maxHeight = getMaxHeightValue()
@@ -805,7 +951,7 @@
       const editor = helpers?.getEditorView?.()
       const height = Number(editor?.getContentHeight?.() || 0)
       if (height > 0)
-        return Math.ceil(height + 1)
+        return Math.ceil(height)
     }
     catch {}
     return null
@@ -960,11 +1106,17 @@
     {#if !collapsed}
       <div class:code-block-body--expanded={expanded} class="code-block-body">
         {#if !shouldDelayEditor}
-          <div bind:this={editorHost} class:is-hidden={showPreFallback} class="code-editor-container"></div>
+          <div bind:this={editorHost} class:is-hidden={!editorRevealed} class="code-editor-container"></div>
         {/if}
-        {#if showPreFallback}
-          <pre class="code-pre-fallback"><code class={preLanguageClass ? `language-${preLanguageClass}` : undefined}>{code}</code></pre>
-        {/if}
+        <div class:is-hidden={fallbackRetired} class="code-editor-fallback-surface">
+          <PreCodeNode
+            class="code-pre-fallback"
+            enhanceable={false}
+            node={preFallbackNode}
+            showLineNumbers={showLineNumbers !== false}
+            style={preFallbackStyle}
+          />
+        </div>
       </div>
     {/if}
 

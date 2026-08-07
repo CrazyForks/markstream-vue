@@ -302,6 +302,49 @@ async function main() {
     await page.waitForURL(url => url.pathname === '/')
     await page.getByRole('heading', { name: 'markstream-octane' }).waitFor()
 
+    const reloadFixture = [
+      '```ts',
+      'const stages = [',
+      `  'prepare',`,
+      `  'stream',`,
+      `  'render',`,
+      '] as const',
+      'async function run() {',
+      '  for (const stage of stages) {',
+      '    await Promise.resolve(stage)',
+      '  }',
+      '}',
+      'const result = run()',
+      'void result',
+      'done()',
+      '```',
+    ].join('\n')
+    const reloadUrl = `http://${host}:${port}/test?view=preview#data=raw:${encodeURIComponent(reloadFixture)}`
+    const assertReloadFixture = async (phase) => {
+      await page.locator('.workspace-card--share-preview .preview-surface .markstream-octane').waitFor()
+      const slot = page.locator('[data-node-type="code_block"]').filter({ hasText: 'done()' }).first()
+      await slot.locator('.code-block-container .monaco-editor').waitFor({ state: 'attached', timeout: 30000 })
+      const state = await slot.evaluate(element => ({
+        hasBareFallback: Boolean(element.querySelector(':scope > .node-content > pre')),
+        hasMonaco: Boolean(element.querySelector('.monaco-editor')),
+        source: Array.from(element.querySelectorAll('pre code')).map(code => code.textContent ?? '').join('\n'),
+      }))
+      assert(!state.hasBareFallback, `${phase}: TypeScript fixture permanently degraded to a bare fallback`)
+      assert(state.hasMonaco, `${phase}: TypeScript fixture did not initialize Monaco`)
+      const normalizedSource = state.source.trimEnd()
+      assert(normalizedSource.split('\n').length === 13, `${phase}: TypeScript fixture did not preserve all 13 lines`)
+      assert(normalizedSource.endsWith('done()'), `${phase}: TypeScript fixture lost its final done() line`)
+    }
+
+    await page.goto(reloadUrl, { waitUntil: 'load', timeout: 60000 })
+    await assertReloadFixture('direct preview load')
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Network.enable')
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true })
+    await page.reload({ waitUntil: 'load', timeout: 60000 })
+    await assertReloadFixture('cold preview reload')
+    await cdp.detach()
+
     if (errors.length)
       throw new Error(`Browser errors:\n${errors.join('\n')}`)
 

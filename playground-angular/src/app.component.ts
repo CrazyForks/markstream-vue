@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common'
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core'
 import { MarkstreamAngularComponent } from 'markstream-angular'
 import { streamContent } from '../../playground/src/const/markdown'
+import { LineNumberHandoffCheckComponent } from './line-number-handoff-check.component'
 import { TestPageComponent } from './test-page.component'
 import { TestSandboxComponent } from './test-sandbox.component'
 import { ThinkingNodeComponent } from './thinking-node.component'
@@ -35,18 +36,21 @@ function readNumericInput(event: Event, fallback: number) {
 @Component({
   selector: 'playground-angular-root',
   standalone: true,
-  imports: [CommonModule, MarkstreamAngularComponent, TestPageComponent, TestSandboxComponent],
+  imports: [CommonModule, MarkstreamAngularComponent, LineNumberHandoffCheckComponent, TestPageComponent, TestSandboxComponent],
   template: `
     <app-angular-test-sandbox *ngIf="isSandboxPage(); else nonSandbox" />
 
     <ng-template #nonSandbox>
-      <app-angular-test-page
-        *ngIf="isTestPage(); else home"
-        (navigateHome)="goHome()"
-      />
+      <app-line-number-handoff-check *ngIf="isLineNumberHandoffCheck(); else nonHandoff" />
 
-      <ng-template #home>
-        <div class="page">
+      <ng-template #nonHandoff>
+        <app-angular-test-page
+          *ngIf="isTestPage(); else home"
+          (navigateHome)="goHome()"
+        />
+
+        <ng-template #home>
+          <div class="page">
           <header class="header">
             <div class="header-main">
               <div class="title">markstream-angular playground</div>
@@ -125,6 +129,7 @@ function readNumericInput(event: Event, fallback: number) {
             </section>
           </div>
         </div>
+        </ng-template>
       </ng-template>
     </ng-template>
   `,
@@ -152,13 +157,15 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly isDone = computed(() => this.content().length >= this.totalLength)
   readonly isTestPage = computed(() => this.currentPath() === '/test')
   readonly isSandboxPage = computed(() => this.currentPath() === '/test-sandbox')
+  readonly isLineNumberHandoffCheck = computed(() => this.currentPath() === '/line-number-handoff-check')
+  readonly isStandalonePage = computed(() => this.isTestPage() || this.isSandboxPage() || this.isLineNumberHandoffCheck())
 
   private timer: number | null = null
 
   ngOnInit() {
     if (typeof window !== 'undefined')
       window.addEventListener('popstate', this.handlePopState)
-    if (!this.isTestPage())
+    if (!this.isStandalonePage())
       this.startStream()
   }
 
@@ -170,7 +177,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   updateDelay(event: Event) {
     this.delay.set(clampDelay(readNumericInput(event, this.delay())))
-    if (this.running() && !this.isTestPage())
+    if (this.running() && !this.isStandalonePage())
       this.restartStream()
   }
 
@@ -205,7 +212,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private readonly handlePopState = () => {
     this.syncPath()
-    if (this.isTestPage() || this.isSandboxPage())
+    if (this.isStandalonePage())
       this.stopStream()
     else if (!this.content())
       this.startStream()
@@ -224,7 +231,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.currentPath.set(nextPath)
 
-    if (this.isTestPage() || this.isSandboxPage())
+    if (this.isStandalonePage())
       this.stopStream()
     else if (!this.content() || this.content().length >= markdownSource.length)
       this.resetStream()

@@ -36,8 +36,9 @@ markstream-svelte {
   --ms-border: var(--border);
   --ms-popover: var(--background);
   --ms-popover-foreground: var(--foreground);
-  --code-fg: hsl(var(--ms-foreground));
-  --code-bg: hsl(var(--ms-muted));
+  /* Unified default code surface; explicit editor themes may override it. */
+  --code-fg: hsl(0 0% 10%);
+  --code-bg: #fff;
   --code-border: hsl(var(--ms-border));
   --code-header-bg: hsl(var(--ms-secondary));
   --code-line-number: hsl(var(--ms-muted-foreground));
@@ -96,6 +97,8 @@ markstream-svelte {
   --muted: 217.2 32.6% 17.5%;
   --muted-foreground: 215 20.2% 65.1%;
   --ms-accent: 217.2 32.6% 24%;
+  --code-fg: hsl(0 0% 93%);
+  --code-bg: #111827;
   --code-header-bg: hsl(var(--ms-muted));
 }
 
@@ -351,8 +354,8 @@ markstream-svelte {
   overflow: auto;
   padding: 1rem 1.1rem;
   border-radius: 1rem;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--code-bg);
+  color: var(--code-fg);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.14);
 }
 
@@ -1473,8 +1476,9 @@ body > div[id^="dmermaid-"] {
 }
 
 .markstream-svelte .code-block-container {
-  --markstream-code-fallback-bg: #ffffff;
-  --markstream-code-fallback-fg: #111827;
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
+  --markstream-code-border-color: var(--code-border);
   --markstream-diff-shell-fg: #0f172a;
   --markstream-diff-shell-muted: #64748b;
   --markstream-diff-shell-border: rgba(148, 163, 184, 0.24);
@@ -1506,14 +1510,15 @@ body > div[id^="dmermaid-"] {
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0.75rem;
-  background: #ffffff;
+  background: var(--markstream-code-fallback-bg, var(--code-bg));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
   box-shadow: 0 18px 38px -28px rgba(15, 23, 42, 0.45);
 }
 
 .markstream-svelte .code-block-container.is-dark,
 .dark .markstream-svelte .code-block-container {
   --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: #e5e7eb;
+  --markstream-code-fallback-fg: hsl(0 0% 93%);
   --markstream-diff-shell-fg: #e2e8f0;
   --markstream-diff-shell-muted: #94a3b8;
   --markstream-diff-shell-border: rgba(82, 82, 91, 0.56);
@@ -1526,7 +1531,8 @@ body > div[id^="dmermaid-"] {
   --markstream-diff-unchanged-divider: rgba(255, 255, 255, 0.18);
   --markstream-diff-action-hover: rgba(255, 255, 255, 0.08);
   border-color: rgba(71, 85, 105, 0.55);
-  background: #0f172a;
+  background: var(--markstream-code-fallback-bg, var(--code-bg));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
   box-shadow: 0 22px 44px -30px rgba(2, 6, 23, 0.95);
 }
 
@@ -1615,12 +1621,22 @@ body > div[id^="dmermaid-"] {
   min-height: 96px;
   min-width: 0;
   overflow: hidden;
-  background: var(--vscode-editor-background, var(--markstream-code-fallback-bg));
+  background: var(--markstream-code-fallback-bg, var(--code-bg));
 }
 
 .markstream-svelte .code-block-body > .code-editor-container,
-.markstream-svelte .code-block-body > .code-pre-fallback {
+.markstream-svelte .code-block-body > .code-editor-fallback-surface {
   grid-area: 1 / 1;
+}
+
+.markstream-svelte .code-editor-fallback-surface {
+  min-width: 0;
+  background: var(--markstream-code-fallback-bg, var(--code-bg));
+}
+
+.markstream-svelte .code-editor-fallback-surface.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .code-block-body--expanded {
@@ -1679,23 +1695,36 @@ body > div[id^="dmermaid-"] {
 }
 
 .markstream-svelte .code-pre-fallback {
+  box-sizing: border-box;
+  width: 100%;
   margin: 0;
-  padding: 1rem;
+  padding: var(--markstream-code-padding-y, 8px) var(--markstream-code-padding-x, 12px);
+  padding-left: var(--markstream-code-padding-left, 52px);
   max-height: 500px;
   overflow: auto;
   border: 0;
   border-radius: 0;
-  background: var(--vscode-editor-background, var(--markstream-code-fallback-bg));
-  color: var(--vscode-editor-foreground, var(--markstream-code-fallback-fg));
-  font:
-    13px/1.55 var(--vscode-editor-font-family, "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  background: var(--markstream-code-fallback-bg, var(--code-bg, #fff));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
+  font-family: var(--markstream-code-font-family, Menlo, Monaco, "Courier New", monospace);
+  font-size: var(--vscode-editor-font-size, 12px);
+  font-weight: 400;
+  line-height: var(--vscode-editor-line-height, 18px);
   white-space: pre;
+  backface-visibility: visible;
+  transform: none;
+  -webkit-font-smoothing: auto;
 }
 
 .markstream-svelte .code-pre-fallback code {
   color: inherit;
   font: inherit;
   background: transparent;
+}
+
+.markstream-svelte .code-pre-fallback.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ── Pre fallback: non-diff line numbers (aligned with markstream-vue PreCodeNode) ── */
@@ -1738,6 +1767,34 @@ body > div[id^="dmermaid-"] {
   line-height: var(--vscode-editor-line-height, 18px);
 }
 
+.markstream-svelte .code-pre-fallback.markstream-pre--line-numbers {
+  background: var(--markstream-code-fallback-bg, var(--code-bg, #fff));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
+}
+
+.markstream-svelte pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--code-bg, #fff);
+  color: var(--code-fg);
+  box-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.markstream-svelte pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) > code {
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
 .markstream-svelte pre.markstream-pre--line-numbers > .markstream-pre__line-numbers {
   position: absolute;
   top: var(--markstream-pre-line-number-top, 0);
@@ -1750,7 +1807,7 @@ body > div[id^="dmermaid-"] {
   min-width: var(--markstream-pre-line-number-width, 2ch);
   padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
   padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
-  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid var(--code-bg);
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
   color: var(--code-line-number);
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -1759,7 +1816,7 @@ body > div[id^="dmermaid-"] {
   user-select: none;
 }
 
-.markstream-svelte pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+.markstream-svelte pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview):not(.code-pre-fallback) > .markstream-pre__code {
   box-sizing: border-box;
   min-width: 100%;
   padding-left: var(--markstream-code-padding-left, 52px);

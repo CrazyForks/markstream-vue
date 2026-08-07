@@ -280,7 +280,12 @@ function renderCodeBlock(
     return renderCustomCodeBlockComponent(customCodeBlock, node, key, ctx)
 
   if (ctx.renderCodeBlocksAsPre || language === 'mermaid') {
-    return Octane.createElement(PreCodeNode, { key, node })
+    const extraProps = getCodeBlockExtraProps(ctx.codeBlockProps, { omit: ['langs'] })
+    return Octane.createElement(PreCodeNode, {
+      key,
+      node,
+      showLineNumbers: extraProps.showLineNumbers === true,
+    })
   }
 
   return Octane.createElement(MonacoCodeBlockNode, {

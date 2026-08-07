@@ -311,6 +311,34 @@ describe('markstream-vue2 heavy-node prop forwarding', () => {
     expect(wrapper.get('pre[data-language="ts"]').attributes('langs')).toBeUndefined()
   })
 
+  it('forwards supported codeBlockProps to built-in pre code blocks', async () => {
+    const wrapper = mount(NodeRenderer as any, {
+      props: {
+        renderCodeBlocksAsPre: true,
+        codeBlockProps: {
+          showLineNumbers: true,
+          diffInline: true,
+          showHeader: false,
+        },
+        nodes: [
+          {
+            type: 'code_block',
+            language: 'ts',
+            code: 'export const value = 1\nexport const next = 2',
+            raw: '```ts\nexport const value = 1\nexport const next = 2\n```',
+          },
+        ],
+      },
+    })
+
+    await flushAll()
+
+    const pre = wrapper.get('pre[data-language="ts"]')
+    expect(pre.attributes('data-markstream-line-numbers')).toBe('1')
+    expect(pre.get('.markstream-pre__line-numbers-text').text()).toBe('1\n2')
+    expect(pre.attributes('showheader')).toBeUndefined()
+  })
+
   it('forwards top-level langs to custom code block renderers', async () => {
     setCustomComponents(customId, {
       code_block: GenericCodeBlockAttrsProbe as any,

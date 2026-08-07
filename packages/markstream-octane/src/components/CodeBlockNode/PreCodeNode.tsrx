@@ -1,4 +1,5 @@
 import type { PreCodeNodeProps } from '../../types/component-props'
+import type { OctaneStyle } from '../../types/octane'
 import * as Octane from 'octane'
 import { useMemo } from 'octane'
 
@@ -305,6 +306,21 @@ function getDisplayCode(node: PreCodeNodeProps['node']) {
   return (node as any)?.loading === true ? value : value.replace(/\r\n$|\n$|\r$/, '')
 }
 
+function countCodeLines(code: string) {
+  let count = 1
+  for (let index = 0; index < code.length; index++) {
+    if (code[index] === '\n') {
+      count++
+    }
+    else if (code[index] === '\r') {
+      count++
+      if (code[index + 1] === '\n')
+        index++
+    }
+  }
+  return count
+}
+
 export function PreCodeNode({ node, className, diffInline, showLineNumbers, style }: PreCodeNodeProps) {
   const normalizedLanguage = useMemo(() => normalizeLanguage((node as any)?.language), [node])
   const languageClass = `language-${normalizedLanguage}`
@@ -312,6 +328,22 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
   const isDiffPreview = showLineNumbers === true && (node as any)?.diff === true
   const diffPanes = useMemo(() => isDiffPreview ? buildDiffPanes(node, diffInline === true, normalizedLanguage) : [], [diffInline, isDiffPreview, node, normalizedLanguage])
   const displayCode = useMemo(() => getDisplayCode(node), [node])
+  const codeLineCount = useMemo(() => countCodeLines(displayCode), [displayCode])
+  const lineNumbersText = useMemo(() => {
+    let text = ''
+    for (let line = 1; line <= codeLineCount; line++)
+      text += `${text ? '\n' : ''}${line}`
+    return text
+  }, [codeLineCount])
+  const lineNumberLayoutStyle = useMemo<OctaneStyle | undefined>(() => {
+    if (showLineNumbers !== true || isDiffPreview)
+      return undefined
+    const width = `${Math.max(4, String(codeLineCount).length)}ch`
+    return {
+      '--markstream-pre-line-number-width': width,
+      '--markstream-code-padding-left': 'calc(var(--markstream-pre-line-number-padding-left, 2ch) + var(--markstream-pre-line-number-width, 2ch) + var(--markstream-pre-line-number-padding-right, 1ch) + var(--markstream-pre-line-number-separator-width, 2px) + var(--markstream-pre-line-number-gap-to-code, 1ch))',
+    } as OctaneStyle
+  }, [codeLineCount, isDiffPreview, showLineNumbers])
 
   return (
     <pre
@@ -322,7 +354,7 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
         isDiffPreview ? 'markstream-pre--diff-preview' : '',
         isDiffPreview && diffInline ? 'markstream-pre--diff-inline' : '',
       ].filter(Boolean).join(' ')}
-      style={style}
+      style={lineNumberLayoutStyle ? { ...style, ...lineNumberLayoutStyle } : style}
       aria-busy={(node as any)?.loading === true}
       aria-label={ariaLabel}
       data-language={normalizedLanguage}
@@ -348,7 +380,16 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
               ))}
             </code>
           )
-        : <code translate="no">{displayCode}</code>}
+        : (
+            <>
+              {showLineNumbers && (
+                <span className="markstream-pre__line-numbers" aria-hidden="true">
+                  <span className="markstream-pre__line-numbers-text">{lineNumbersText}</span>
+                </span>
+              )}
+              <code translate="no" className="markstream-pre__code">{displayCode}</code>
+            </>
+          )}
     </pre>
   )
 }

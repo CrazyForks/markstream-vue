@@ -1,4 +1,5 @@
 import type { AngularRenderableNode } from '../shared/node-helpers'
+import { CommonModule } from '@angular/common'
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core'
 import { getString, normalizeCodeLanguage } from '../shared/node-helpers'
 
@@ -25,6 +26,7 @@ function getDisplayCode(code: unknown, loading?: boolean) {
 @Component({
   selector: 'markstream-angular-pre-code-node',
   standalone: true,
+  imports: [CommonModule],
   template: `<pre
     [ngClass]="preClasses"
     [ngStyle]="lineNumberLayoutStyle"
@@ -34,7 +36,7 @@ function getDisplayCode(code: unknown, loading?: boolean) {
     [attr.data-markstream-line-numbers]="showLineNumbers ? '1' : null"
     data-markstream-pre="1"
     tabindex="0"
-  ><ng-container *ngIf="showLineNumbers"><span class="markstream-pre__line-numbers" aria-hidden="true"><span class="markstream-pre__line-numbers-text">{{ lineNumbersText }}</span></span></ng-container><code translate="no" class="markstream-pre__code" [textContent]="code"></code></pre>`,
+  ><ng-container *ngIf="showLineNumbers"><span class="markstream-pre__line-numbers" aria-hidden="true"><span class="markstream-pre__line-numbers-text">{{ lineNumbersText }}</span></span></ng-container><code translate="no" class="markstream-pre__code" [textContent]="displayCode"></code></pre>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PreCodeNodeComponent {

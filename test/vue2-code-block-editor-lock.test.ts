@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import CodeBlockNode from '../packages/markstream-vue2/src/components/CodeBlockNode/CodeBlockNode.vue'
+import { CodeBlockNodeLoading } from '../packages/markstream-vue2/src/components/NodeRenderer/asyncComponent'
 
 interface StreamMonacoHelpers {
   useMonaco: ReturnType<typeof vi.fn>
@@ -16,6 +17,7 @@ interface StreamMonacoHelpers {
   safeClean: ReturnType<typeof vi.fn>
   refreshDiffPresentation: ReturnType<typeof vi.fn>
   setTheme: ReturnType<typeof vi.fn>
+  whenVisualReady?: ReturnType<typeof vi.fn>
 }
 
 function getStreamMonacoHelpers(): StreamMonacoHelpers {
@@ -43,6 +45,7 @@ function resetStreamMonacoHelpers() {
   helpers.safeClean.mockReset().mockImplementation(() => {})
   helpers.refreshDiffPresentation.mockReset().mockImplementation(() => {})
   helpers.setTheme.mockReset().mockImplementation(async () => {})
+  helpers.whenVisualReady = vi.fn(async () => true)
 }
 
 function getThemeUpdater(wrapper: any) {
@@ -84,9 +87,114 @@ async function waitForCondition(check: () => boolean, timeout = 1000) {
   }
 }
 
+describe('markstream-vue2 codeBlockNode async loading surface', () => {
+  it('renders a full-height numbered pre immediately while the enhanced chunk loads', () => {
+    const code = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join('\n')
+    const wrapper = mount(CodeBlockNodeLoading as any, {
+      props: {
+        node: {
+          type: 'code_block',
+          language: 'ts',
+          code,
+          raw: `\`\`\`ts\n${code}\n\`\`\``,
+        },
+        loading: false,
+        showHeader: true,
+        estimatedHeightPx: 283,
+        estimatedContentHeightPx: 232,
+      },
+    })
+
+    const block = wrapper.get('[data-markstream-code-loading="1"]')
+    const fallback = wrapper.get('pre.code-block-loading-pre')
+    expect(block.find('.code-block-header').exists()).toBe(true)
+    expect((block.element as HTMLElement).style.minHeight).toBe('283px')
+    expect(fallback.classes()).toContain('code-pre-fallback')
+    expect((fallback.element as HTMLElement).style.minHeight).toBe('232px')
+    expect(fallback.attributes('data-markstream-line-numbers')).toBe('1')
+    expect(fallback.get('.markstream-pre__line-numbers-text').text()).toBe(
+      Array.from({ length: 12 }, (_, index) => String(index + 1)).join('\n'),
+    )
+    expect((fallback.element as HTMLElement).style.getPropertyValue('--markstream-code-font-family')).toBe('"SF Mono", Monaco, Consolas, "Ubuntu Mono", "Liberation Mono", "Courier New", monospace')
+    expect((fallback.element as HTMLElement).style.fontSize).toBe('12px')
+    expect((fallback.element as HTMLElement).style.lineHeight).toBe('18px')
+    expect((fallback.element as HTMLElement).style.paddingTop).toBe('8px')
+    expect((fallback.element as HTMLElement).style.paddingBottom).toBe('8px')
+
+    wrapper.unmount()
+  })
+})
+
 describe('markstream-vue2 codeBlockNode theme updates', () => {
   beforeEach(() => {
     resetStreamMonacoHelpers()
+  })
+
+  it('keeps the pre fallback visible until the runtime reports highlighted output ready', async () => {
+    const helpers = getStreamMonacoHelpers()
+    let resolveVisualReady: ((ready: boolean) => void) | undefined
+    const visualReady = new Promise<boolean>((resolve) => {
+      resolveVisualReady = resolve
+    })
+    helpers.whenVisualReady = vi.fn(() => visualReady)
+
+    const wrapper = mount(CodeBlockNode as any, {
+      props: {
+        node: {
+          type: 'code_block',
+          language: 'ts',
+          code: 'export const value = 1',
+          raw: '```ts\nexport const value = 1\n```',
+        },
+        loading: false,
+        showHeader: false,
+        estimatedHeightPx: 234,
+        estimatedContentHeightPx: 232,
+      },
+    })
+
+    expect((wrapper.get('.code-block-container').element as HTMLElement).style.minHeight).toBe('234px')
+    expect((wrapper.get('.code-editor-container').element as HTMLElement).style.minHeight).toBe('232px')
+
+    await waitForCreateEditorCalls(1, helpers)
+    await waitForCondition(() => helpers.whenVisualReady?.mock.calls.length === 1)
+
+    const fallback = wrapper.get('pre.code-pre-fallback')
+    expect(fallback.attributes('data-markstream-line-numbers')).toBe('1')
+    expect((wrapper.get('.code-editor-container').element as HTMLElement).dataset.markstreamHostHidden).toBe('true')
+
+    resolveVisualReady?.(true)
+    await waitForCondition(() => (wrapper.vm as any)?.editorReady === true)
+
+    expect((wrapper.vm as any).editorReady).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps the pre fallback when the runtime cannot confirm highlighted output', async () => {
+    const helpers = getStreamMonacoHelpers()
+    helpers.whenVisualReady = vi.fn(async () => false)
+
+    const wrapper = mount(CodeBlockNode as any, {
+      props: {
+        node: {
+          type: 'code_block',
+          language: 'ts',
+          code: 'export const value = 1',
+          raw: '```ts\nexport const value = 1\n```',
+        },
+        loading: false,
+        showHeader: false,
+      },
+    })
+
+    await waitForCreateEditorCalls(1, helpers)
+    await waitForCondition(() => helpers.whenVisualReady?.mock.calls.length === 1)
+    await flushPendingMicrotasks()
+
+    const fallback = wrapper.get('pre.code-pre-fallback')
+    expect(fallback.attributes('data-markstream-line-numbers')).toBe('1')
+    expect((wrapper.get('.code-editor-container').element as HTMLElement).dataset.markstreamHostHidden).toBe('true')
+    wrapper.unmount()
   })
 
   it('updates single-editor themes without recreating the editor when isDark toggles', async () => {
@@ -155,6 +263,13 @@ describe('markstream-vue2 codeBlockNode theme updates', () => {
     await waitForCreateEditorCalls(1, helpers)
 
     const options = helpers.useMonaco.mock.calls[0]?.[0]
+    expect(options.stream).toBe(false)
+    expect(options.disableFileHeader).toBe(true)
+    expect(options.fontFamily).toBe('"SF Mono", Monaco, Consolas, "Ubuntu Mono", "Liberation Mono", "Courier New", monospace')
+    expect(options.fontSize).toBe(12)
+    expect(options.lineHeight).toBe(18)
+    expect(options.padding).toEqual({ top: 8, bottom: 8 })
+    expect(options.tabSize).toBe(4)
     expect(options.themes).toEqual(['vitesse-dark', 'vitesse-light'])
     expect(options.languages).toEqual(expect.arrayContaining(['tsx', 'typescript', 'plaintext']))
 

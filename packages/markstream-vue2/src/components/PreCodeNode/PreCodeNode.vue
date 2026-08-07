@@ -419,6 +419,36 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
   display: block;
 }
 
+.markstream-vue2 pre.code-pre-fallback > .markstream-pre__code {
+  font-size: inherit;
+  line-height: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+}
+
+.markstream-vue2 pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--code-bg, #fff);
+  color: var(--code-fg, hsl(0 0% 10%));
+  box-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.markstream-vue2 pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) > code {
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
 .markstream-vue2 pre.markstream-pre--line-numbers {
   position: relative;
 }
@@ -435,7 +465,7 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
   min-width: var(--markstream-pre-line-number-width, 2ch);
   padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
   padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
-  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid var(--code-bg, var(--markstream-code-fallback-bg, #ffffff));
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
   color: var(--code-line-number, #6b7280);
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -444,7 +474,7 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
   user-select: none;
 }
 
-.markstream-vue2 pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+.markstream-vue2 pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview):not(.code-pre-fallback) > .markstream-pre__code {
   box-sizing: border-box;
   min-width: 100%;
   padding-left: var(--markstream-code-padding-left, 52px);

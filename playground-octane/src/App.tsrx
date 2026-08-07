@@ -27,6 +27,28 @@ function configureMarkdownIt(md: MarkdownIt) {
 
 const MemoizedNodeRenderer = memo(NodeRenderer)
 
+const LINE_NUMBER_HANDOFF_PATH = '/line-number-handoff-check'
+const lineNumberHandoffMarkdown = [
+  '# Pre → Highlight Line Number Handoff',
+  '',
+  '```ts',
+  'export function chunk(input: string) {',
+  '  const lines = input.split(/\\r?\\n/)',
+  '  return lines.map((line, index) => ({ index, value: line.trim(), block: 1 }))',
+  '}',
+  '',
+  'for (const item of chunk(\'alpha\\nbeta\\ngamma\')) {',
+  '  console.log(item.index, item.value)',
+  '}',
+  '',
+  'function done() {',
+  '  return true',
+  '}',
+  'done()',
+  '```',
+].join('\n')
+const lineNumberHandoffCodeBlockProps = { showLineNumbers: true }
+
 const THEMES = [
   'andromeeda',
   'aurora-x',
@@ -187,6 +209,8 @@ export default function App() {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === 'undefined')
       return false
+    if (normalizePath(window.location.pathname) === LINE_NUMBER_HANDOFF_PATH)
+      return new URLSearchParams(window.location.search).get('theme') === 'dark'
     const stored = window.localStorage.getItem(DARK_MODE_KEY)
     if (stored)
       return stored === 'dark'
@@ -244,6 +268,7 @@ export default function App() {
   const isCompactSettings = useMediaQuery('(max-width: 1023px)')
   const shouldShowSettingsPanel = !isCompactSettings || showSettings
   const isTestPage = currentPath === '/test'
+  const isLineNumberHandoffCheck = currentPath === LINE_NUMBER_HANDOFF_PATH
 
   useChatAutoScroll(messagesRef, content)
 
@@ -278,9 +303,9 @@ export default function App() {
     if (isTestPage)
       return
     document.documentElement.classList.toggle('dark', isDark)
-    if (typeof window !== 'undefined')
+    if (typeof window !== 'undefined' && !isLineNumberHandoffCheck)
       window.localStorage.setItem(DARK_MODE_KEY, isDark ? 'dark' : 'light')
-  }, [isDark, isTestPage])
+  }, [isDark, isLineNumberHandoffCheck, isTestPage])
 
   useEffect(() => {
     if (streamChunkDelayMin !== normalizedChunkDelayRange.min) {
@@ -371,13 +396,13 @@ export default function App() {
   }, [isCompactSettings])
 
   useEffect(() => {
-    if (isTestPage)
+    if (isTestPage || isLineNumberHandoffCheck)
       return
     startStreamSimulation()
     return () => {
       stopStreamSimulation()
     }
-  }, [isTestPage, startStreamSimulation, stopStreamSimulation])
+  }, [isLineNumberHandoffCheck, isTestPage, startStreamSimulation, stopStreamSimulation])
 
   const goToTest = () => {
     navigate('/test')
@@ -404,6 +429,47 @@ export default function App() {
         <TestLab frameworkLabel="Octane" onGoHome={() => navigate('/')} />
       </div>
     )
+
+  if (isLineNumberHandoffCheck) {
+    const rendererProps = {
+      content: lineNumberHandoffMarkdown,
+      final: true,
+      fade: false,
+      smoothStreaming: false,
+      typewriter: false,
+      isDark,
+      codeBlockDarkTheme: 'vitesse-dark',
+      codeBlockLightTheme: 'vitesse-light',
+      codeBlockProps: lineNumberHandoffCodeBlockProps,
+    } as const
+
+    return (
+      <main className={`handoff-check markstream-octane${isDark ? ' dark' : ''}`}>
+        <header>
+          <h1>Pre → Highlight Line Number Handoff</h1>
+          <button type="button" onClick={() => setIsDark(value => !value)}>
+            Toggle dark
+          </button>
+        </header>
+
+        <div className="handoff-grid">
+          <section className="handoff-col" data-handoff-case="enhanced">
+            <h2>1) Highlight (default)</h2>
+            <NodeRenderer {...rendererProps} />
+          </section>
+
+          <section className="handoff-col" data-handoff-case="pre">
+            <h2>2) Pre fallback (render-code-blocks-as-pre)</h2>
+            <NodeRenderer
+              {...rendererProps}
+              renderCodeBlocksAsPre
+              codeBlockProps={lineNumberHandoffCodeBlockProps}
+            />
+          </section>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <div className="markstream-octane-playground h-full">

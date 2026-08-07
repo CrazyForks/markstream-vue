@@ -1686,10 +1686,31 @@ describe('virtual timeline restore visual readiness', () => {
     expect((pre.element as HTMLElement).style.paddingBottom).toBe('7px')
     expect(wrapper.get('.code-header-title').text()).toBe('src/example.ts')
     expect(wrapper.get('.code-header-caption').text()).toBe('Typescript')
-    expect(wrapper.get('.icon-slot').exists()).toBe(true)
+    const headerMain = wrapper.get('.code-header-main').element as HTMLElement
+    const headerCopy = wrapper.get('.code-header-copy').element as HTMLElement
+    const headerTitle = wrapper.get('.code-header-title').element as HTMLElement
+    const headerCaption = wrapper.get('.code-header-caption').element as HTMLElement
+    const iconSlot = wrapper.get('.icon-slot')
+    expect(headerMain.style.display).toBe('flex')
+    expect(headerMain.style.gap).toBe('var(--ms-gap-header-main, 0.625rem)')
+    expect(headerCopy.style.display).toBe('grid')
+    expect(headerTitle.style.fontSize).toBe('var(--ms-text-label, 0.75rem)')
+    expect(headerTitle.style.fontWeight).toBe('500')
+    expect(headerTitle.style.textOverflow).toBe('ellipsis')
+    expect(headerCaption.style.fontSize).toBe('0.75rem')
+    expect(headerCaption.style.textOverflow).toBe('ellipsis')
+    expect(iconSlot.attributes('aria-hidden')).toBe('true')
+    expect((iconSlot.element as HTMLElement).style.display).toBe('inline-flex')
+    expect((iconSlot.element as HTMLElement).style.width).toBe('1rem')
+    expect((iconSlot.element as HTMLElement).style.height).toBe('1rem')
+    expect((iconSlot.element as HTMLElement).style.flex).toBe('0 0 auto')
+    for (const icon of wrapper.findAll('.code-action-btn .action-icon')) {
+      expect(icon.attributes('width')).toBe('14')
+      expect(icon.attributes('height')).toBe('14')
+    }
     expect(wrapper.get('.code-block-container').classes()).toContain('border')
     expect((root.element as HTMLElement).style.color).toBe('var(--vscode-editor-foreground, var(--markstream-code-fallback-fg, var(--code-fg)))')
-    expect((root.element as HTMLElement).style.backgroundColor).toBe('var(--vscode-editor-background, var(--markstream-code-fallback-bg, var(--code-bg)))')
+    expect((root.element as HTMLElement).style.backgroundColor).toBe('var(--markstream-code-fallback-bg, var(--code-bg, #fff))')
     expect((root.element as HTMLElement).style.borderColor).toBe('var(--markstream-code-border-color, var(--code-border))')
     expect(pre.classes()).not.toContain('border')
 

@@ -24,6 +24,47 @@ html.dark {
   color: #e0e0e0;
 }
 
+.handoff-check {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 24px;
+  color: #0f172a;
+  background: #f5f7fb;
+  font-family: system-ui, sans-serif;
+}
+
+.handoff-check.dark {
+  color: #e2e8f0;
+  background: #0b1220;
+}
+
+.handoff-check header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.handoff-col {
+  min-width: 0;
+}
+
+.handoff-col h2 {
+  margin-top: 20px;
+}
+
+@media (max-width: 720px) {
+  .handoff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .app-container {
   transition: background-color 0.3s ease;
   overflow: hidden;

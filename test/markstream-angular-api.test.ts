@@ -20,10 +20,22 @@ import {
   isMermaidEnabled,
   setMermaidLoader,
 } from '../packages/markstream-angular/src/optional/mermaid'
+import {
+  getLanguageIcon,
+  normalizeLanguageIdentifier,
+} from '../packages/markstream-angular/src/utils/languageIcon'
 import { buildKaTeXCDNWorkerSource } from '../packages/markstream-angular/src/workers/katexCdnWorker'
 import { buildMermaidCDNWorkerSource } from '../packages/markstream-angular/src/workers/mermaidCdnWorker'
 
 describe('markstream-angular api parity helpers', () => {
+  it('uses the Vue 3 Material language icons by default', () => {
+    expect(normalizeLanguageIdentifier('ts:example.ts')).toBe('typescript')
+    expect(getLanguageIcon('ts')).toContain('fill="#0288d1"')
+    expect(getLanguageIcon('ts')).toContain('viewBox="0 0 16 16"')
+    expect(getLanguageIcon('javascript')).toContain('fill="#ffca28"')
+    expect(getLanguageIcon('unknown-language')).toContain('fill="#ff7043"')
+  })
+
   it('merges global and scoped custom components like react/vue2', () => {
     const GlobalCode = class {}
     const ScopedThinking = class {}

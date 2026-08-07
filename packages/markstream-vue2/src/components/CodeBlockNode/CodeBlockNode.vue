@@ -39,6 +39,9 @@ const props = defineProps({
   htmlPreviewAllowScripts: { type: Boolean, default: undefined },
   htmlPreviewSandbox: { type: String, default: undefined },
   customId: { type: String, default: undefined },
+  estimatedHeightPx: { type: Number, default: undefined },
+  estimatedContentHeightPx: { type: Number, default: undefined },
+  estimatedDiffInline: { type: Boolean, default: undefined },
 })
 
 const emits = defineEmits<{
@@ -177,7 +180,9 @@ let refreshDiffPresentation: () => void = () => {}
 let createEditorPromise: Promise<void> | null = null
 let detectLanguage: (code: string) => string = () => String(props.node.language ?? 'plaintext')
 let setTheme: (theme: any) => Promise<void> = async () => {}
+let whenRuntimeVisualReady: (() => Promise<boolean>) | null = null
 let runtimeMonacoOptions: Record<string, any> | null = null
+let isUnmounted = false
 const inlineFoldProxyCleanups: Array<() => void> = []
 let deferredEditorVisualSyncRafId: number | null = null
 const isDiff = computed(() => props.node.diff)
@@ -187,6 +192,7 @@ const defaultDiffHideUnchangedRegions = Object.freeze({
   minimumLineCount: 4,
   revealLineCount: 5,
 })
+const defaultPreFallbackFontFamily = '"SF Mono", Monaco, Consolas, "Ubuntu Mono", "Liberation Mono", "Courier New", monospace'
 const defaultPreFallbackFontSize = 12
 const defaultPreFallbackLineHeight = 18
 
@@ -313,6 +319,7 @@ if (typeof window !== 'undefined') {
         safeClean = helpers.safeClean || helpers.cleanupEditor || safeClean
         refreshDiffPresentation = helpers.refreshDiffPresentation || refreshDiffPresentation
         setTheme = helpers.setTheme || setTheme
+        whenRuntimeVisualReady = helpers.whenVisualReady || null
         monacoReady.value = true
 
         if (codeEditor.value)
@@ -349,6 +356,120 @@ const LINE_EXTRA_PER_LINE = 1.5
 const PIXEL_EPSILON = 1
 
 // Use shared safeRaf / safeCancelRaf from utils to avoid duplication
+
+function waitForAnimationFrame() {
+  return new Promise<void>((resolve) => {
+    let settled = false
+    let rafId: number | null = null
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null
+    const finish = () => {
+      if (settled)
+        return
+      settled = true
+      if (timeoutId != null)
+        globalThis.clearTimeout(timeoutId)
+      if (rafId != null)
+        safeCancelRaf(rafId)
+      resolve()
+    }
+    timeoutId = globalThis.setTimeout(finish, 50)
+    rafId = safeRaf(finish)
+  })
+}
+
+function expectsLanguageTokensForLine(text: string) {
+  return /['"`{}()[\]:;=<>.,]|\/\/|\/\*|\b(?:async|await|class|const|enum|export|for|function|if|import|interface|let|return|switch|type|var|while)\b/.test(
+    text.replace(/\u00A0/g, ' ').trim(),
+  )
+}
+
+function hasLanguageHighlightReady(root: HTMLElement | null | undefined) {
+  if (isPlainTextLanguage.value)
+    return true
+  if (!root)
+    return false
+
+  const viewLines = Array.from(
+    root.querySelectorAll<HTMLElement>(
+      '.monaco-diff-editor .view-lines .view-line, .monaco-editor .view-lines .view-line',
+    ),
+  ).filter(line => Boolean(line.textContent?.trim()))
+  if (!viewLines.length)
+    return false
+
+  const tokenCandidateLines = viewLines.filter(line => expectsLanguageTokensForLine(line.textContent ?? ''))
+  if (!tokenCandidateLines.length)
+    return true
+
+  return tokenCandidateLines.some((line) => {
+    const spans = Array.from(line.querySelectorAll<HTMLElement>('span'))
+      .filter(span => span.textContent?.trim())
+    return spans.some((span) => {
+      const tokenClasses = String(span.className || '').split(/\s+/)
+      return tokenClasses.some(className => /^mtk\d+$/.test(className) && className !== 'mtk1')
+    })
+  })
+}
+
+function hasCurrentEditorContent() {
+  const editor = isDiff.value
+    ? getDiffEditorView()?.getModifiedEditor?.() ?? getDiffEditorView()
+    : getEditorView()
+  const model = editor?.getModel?.()
+  if (typeof model?.getValue !== 'function')
+    return true
+  const expected = isDiff.value
+    ? String(props.node.updatedCode ?? props.node.code ?? '')
+    : String(props.node.code ?? '')
+  return model.getValue() === expected
+}
+
+function hasRenderedEditorDom(root = codeEditor.value) {
+  if (!root)
+    return false
+  if (root.querySelector('diffs-container, .stream-diffs-shell'))
+    return true
+  return Boolean(root.querySelector('.monaco-diff-editor .view-lines .view-line, .monaco-editor .view-lines .view-line'))
+}
+
+async function waitForEditorVisualReady() {
+  if (whenRuntimeVisualReady) {
+    try {
+      const ready = await whenRuntimeVisualReady()
+      if (!ready)
+        return false
+      await nextTick()
+      await waitForAnimationFrame()
+      return !isUnmounted
+    }
+    catch {
+      return false
+    }
+  }
+
+  const maxPasses = 30
+  for (let pass = 0; pass < maxPasses; pass++) {
+    if (isUnmounted)
+      return false
+
+    const code = isDiff.value
+      ? String(props.node.updatedCode ?? props.node.code ?? '')
+      : String(props.node.code ?? '')
+    const domReady = hasRenderedEditorDom()
+    const highlightReady = !code.trim() || isPlainTextLanguage.value || hasLanguageHighlightReady(codeEditor.value)
+    if (hasCurrentEditorContent() && domReady && highlightReady) {
+      await nextTick()
+      await waitForAnimationFrame()
+      if (!isUnmounted && hasCurrentEditorContent() && hasRenderedEditorDom())
+        return !code.trim() || isPlainTextLanguage.value || hasLanguageHighlightReady(codeEditor.value)
+    }
+
+    await nextTick()
+    await waitForAnimationFrame()
+  }
+
+  return false
+}
 
 function measureLineHeightFromDom(): number | null {
   try {
@@ -455,7 +576,26 @@ function resetCodeFont() {
     codeFontSize.value = defaultCodeFontSize.value as number
 }
 
+function measureRenderedStaticSurfaceHeight(): number | null {
+  const host = codeEditor.value
+  if (!host)
+    return null
+
+  const diffsContainer = host.querySelector('diffs-container') as HTMLElement | null
+  const shadowRoot = diffsContainer?.shadowRoot
+  const renderedSurface = shadowRoot?.querySelector<HTMLElement>('pre[data-file], [data-diff]')
+    ?? host.querySelector<HTMLElement>('.stream-diffs-shell')
+  const height = renderedSurface?.getBoundingClientRect().height ?? 0
+  return Number.isFinite(height) && height > 0 ? Math.ceil(height) : null
+}
+
 function computeContentHeight(): number | null {
+  // stream-diffs renders inside Shadow DOM, so its adapter model may not expose
+  // a Monaco-style content height. Prefer the committed static surface itself.
+  const staticSurfaceHeight = measureRenderedStaticSurfaceHeight()
+  if (staticSurfaceHeight != null)
+    return staticSurfaceHeight
+
   // Prefer Monaco's contentHeight when available; fallback to lineCount * lineHeight
   try {
     const ed = isDiff.value ? getDiffEditorView() : getEditorView()
@@ -522,18 +662,24 @@ function shouldPreferPlainTextFallbackSurface(bg: string, fg: string, expectDark
     || (fgLuminance != null && fgLuminance > 190)
 }
 
-// Copy computed CSS variables from the editor DOM up to the component root so
-// the header (which lives alongside the editor but outside its inner DOM)
-// can use variables like --vscode-editor-foreground / --vscode-editor-background.
+// Keep runtime theme variables on the editor host. Writing them to the outer
+// shell would restyle the still-visible pre fallback while the editor is hidden,
+// producing an extra background-only state before the final handoff.
 function syncEditorCssVars() {
   const editorEl = codeEditor.value as HTMLElement | null
   const rootEl = container.value as HTMLElement | null
   if (!editorEl || !rootEl)
     return
+
+  rootEl.style.removeProperty('--vscode-editor-foreground')
+  rootEl.style.removeProperty('--vscode-editor-background')
+  rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+
+  const targetEl = editorEl
   if (isDiff.value) {
-    rootEl.style.removeProperty('--vscode-editor-foreground')
-    rootEl.style.removeProperty('--vscode-editor-background')
-    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+    targetEl.style.removeProperty('--vscode-editor-foreground')
+    targetEl.style.removeProperty('--vscode-editor-background')
+    targetEl.style.removeProperty('--vscode-editor-selectionBackground')
     return
   }
   // Monaco usually applies theme variables on an element with class
@@ -569,18 +715,18 @@ function syncEditorCssVars() {
   const bg = bgVar || String(bgStyles?.backgroundColor ?? rootStyles?.backgroundColor ?? '').trim()
 
   if (shouldPreferPlainTextFallbackSurface(bg, fg, rootEl.classList.contains('is-dark'))) {
-    rootEl.style.removeProperty('--vscode-editor-foreground')
-    rootEl.style.removeProperty('--vscode-editor-background')
-    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+    targetEl.style.removeProperty('--vscode-editor-foreground')
+    targetEl.style.removeProperty('--vscode-editor-background')
+    targetEl.style.removeProperty('--vscode-editor-selectionBackground')
     return
   }
 
   if (fg)
-    rootEl.style.setProperty('--vscode-editor-foreground', fg)
+    targetEl.style.setProperty('--vscode-editor-foreground', fg)
   if (bg)
-    rootEl.style.setProperty('--vscode-editor-background', bg)
+    targetEl.style.setProperty('--vscode-editor-background', bg)
   if (selVar)
-    rootEl.style.setProperty('--vscode-editor-selectionBackground', selVar)
+    targetEl.style.setProperty('--vscode-editor-selectionBackground', selVar)
 }
 
 let resizeSyncHandler: (() => void) | null = null
@@ -924,37 +1070,12 @@ const languageIcon = computed(() => {
   return getLanguageIcon(codeLanguage.value || '')
 })
 
-// Compute inline style for container to respect optional min/max width
-const containerStyle = computed(() => {
-  const s: Record<string, string> = {}
-  const fmt = (v: string | number | undefined) => {
-    if (v == null)
-      return undefined
-    return typeof v === 'number' ? `${v}px` : String(v)
-  }
-  const min = fmt(props.minWidth)
-  const max = fmt(props.maxWidth)
-  if (min)
-    s.minWidth = min
-  if (max)
-    s.maxWidth = max
-  if (isDiff.value) {
-    s.color = 'var(--markstream-diff-shell-fg)'
-    s.borderColor = 'var(--markstream-diff-shell-border)'
-  }
-  else {
-    s.color = 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg))'
-    s.backgroundColor = 'var(--vscode-editor-background, var(--markstream-code-fallback-bg))'
-    s.borderColor = 'var(--markstream-code-border-color)'
-  }
-  return s
-})
 const headerStyle = computed<Record<string, string> | undefined>(() => {
   if (isDiff.value)
     return undefined
   return {
-    color: 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg))',
-    backgroundColor: 'var(--vscode-editor-background, var(--markstream-code-fallback-bg))',
+    color: 'var(--code-fg, var(--markstream-code-fallback-fg))',
+    backgroundColor: 'var(--code-header-bg, transparent)',
   }
 })
 const tooltipsEnabled = computed(() => props.showTooltips !== false)
@@ -1178,7 +1299,14 @@ async function runEditorCreation(el: HTMLElement) {
       scheduleEditorVisualSync()
     })
   }
-  editorReady.value = true
+
+  const visuallyReady = await waitForEditorVisualReady()
+  if (visuallyReady && !isCollapsed.value && !isExpanded.value) {
+    // Lock the hidden host to the committed Shadow DOM surface before removing
+    // the pre fallback. Height and visibility then change in one Vue update.
+    updateCollapsedHeight()
+  }
+  editorReady.value = visuallyReady
 }
 
 function ensureEditorCreation(el: HTMLElement) {
@@ -1418,16 +1546,18 @@ const preFallbackMetrics = computed(() => {
       : Math.max(12, Math.round(resolvedFontSize * 1.5)))
   const fontFamily = typeof raw?.fontFamily === 'string' && raw.fontFamily.trim()
     ? raw.fontFamily.trim()
-    : undefined
+    : defaultPreFallbackFontFamily
   const padding = readMonacoPadding(raw?.padding)
+  const defaultPadding = isDiff.value ? 0 : 8
+  const hasConfiguredPadding = Boolean(raw?.padding && typeof raw.padding === 'object')
   const tabSize = readPositiveNumber(raw?.tabSize) ?? 4
 
   return {
     fontFamily,
     fontSize: resolvedFontSize,
     lineHeight: resolvedLineHeight,
-    paddingBottom: padding.bottom,
-    paddingTop: padding.top,
+    paddingBottom: hasConfiguredPadding ? padding.bottom : defaultPadding,
+    paddingTop: hasConfiguredPadding ? padding.top : defaultPadding,
     tabSize,
   }
 })
@@ -1435,35 +1565,107 @@ const preFallbackMetrics = computed(() => {
 const preFallbackDiffInline = computed(() => {
   if (!isDiff.value)
     return false
+  if (typeof props.estimatedDiffInline === 'boolean')
+    return props.estimatedDiffInline
   return resolvedMonacoOptions.value?.renderSideBySide === false
 })
 
 const preFallbackStyle = computed(() => {
   const metrics = preFallbackMetrics.value
   const style: Record<string, string | number> = {
-    '--markstream-code-padding-left': '62px',
-    '--markstream-pre-diff-line-height': `${metrics.lineHeight}px`,
     '--markstream-pre-line-number-top': `${metrics.paddingTop}px`,
-    '--markstream-pre-line-number-width': '36px',
-    '--markstream-pre-line-number-gap': '0px',
     'fontSize': `${metrics.fontSize}px`,
     'lineHeight': `${metrics.lineHeight}px`,
     'paddingBottom': `${metrics.paddingBottom}px`,
     'paddingTop': `${metrics.paddingTop}px`,
     'tabSize': metrics.tabSize,
   }
+  if (isDiff.value) {
+    style['--markstream-code-padding-left'] = '62px'
+    style['--markstream-pre-diff-line-height'] = `${metrics.lineHeight}px`
+    style['--markstream-pre-line-number-width'] = '36px'
+    style['--markstream-pre-line-number-gap'] = '0px'
+  }
   if (metrics.fontFamily)
     style.fontFamily = metrics.fontFamily
   return style
 })
 
+// Compute inline style for container to respect optional min/max width.
+const containerStyle = computed(() => {
+  const style: Record<string, string> = {}
+  const formatSize = (value: string | number | undefined) => {
+    if (value == null)
+      return undefined
+    return typeof value === 'number' ? `${value}px` : String(value)
+  }
+  const minWidth = formatSize(props.minWidth)
+  const maxWidth = formatSize(props.maxWidth)
+  if (minWidth)
+    style.minWidth = minWidth
+  if (maxWidth)
+    style.maxWidth = maxWidth
+
+  // The async loading surface already occupies the full pre height. Preserve
+  // that exact block floor while this component mounts so replacing the async
+  // placeholder cannot collapse the page for a frame.
+  if (!editorReady.value && !isCollapsed.value) {
+    const estimatedHeight = readPositiveNumber(props.estimatedHeightPx)
+    if (estimatedHeight != null) {
+      style.minHeight = `${Math.ceil(estimatedHeight)}px`
+    }
+    else if (!isDiff.value) {
+      const metrics = preFallbackMetrics.value
+      const code = String(props.node.code ?? '').replace(/(?:\r\n|\n|\r)$/, '')
+      const lineCount = code ? code.split(/\r\n|\n|\r/).length : 1
+      const contentHeight = Math.min(
+        getMaxHeightValue(),
+        lineCount * metrics.lineHeight + metrics.paddingTop + metrics.paddingBottom,
+      )
+      const chromeHeight = (props.showHeader ? 41 : 0) + 2
+      style.minHeight = `${Math.ceil(contentHeight + chromeHeight)}px`
+    }
+  }
+
+  if (isDiff.value) {
+    style.color = 'var(--markstream-diff-shell-fg)'
+    style.borderColor = 'var(--markstream-diff-shell-border)'
+  }
+  else {
+    style.color = 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg))'
+    style.backgroundColor = 'var(--vscode-editor-background, var(--markstream-code-fallback-bg))'
+    style.borderColor = 'var(--markstream-code-border-color)'
+  }
+  return style
+})
+
+const codeEditorContainerStyle = computed(() => {
+  if (editorReady.value || isCollapsed.value)
+    return undefined
+  const estimatedContentHeight = readPositiveNumber(props.estimatedContentHeightPx)
+  return estimatedContentHeight == null
+    ? undefined
+    : { minHeight: `${Math.ceil(Math.min(estimatedContentHeight, getMaxHeightValue()))}px` }
+})
+
 function buildRuntimeMonacoOptions() {
+  const metrics = preFallbackMetrics.value
   const nextOptions = {
     wordWrap: 'on',
     wrappingIndent: 'same',
     ...(resolvedMonacoOptions.value || {}),
     themes: runtimeMonacoThemes.value,
     languages: runtimeMonacoLanguages.value,
+    // CodeBlockNode owns both the header and streamed content. Keep the runtime
+    // surface final and headerless, and lock it to the visible pre's metrics so
+    // the handoff cannot introduce an intermediate font/layout state.
+    stream: false,
+    disableFileHeader: true,
+    fontSize: metrics.fontSize,
+    lineHeight: metrics.lineHeight,
+    padding: { top: metrics.paddingTop, bottom: metrics.paddingBottom },
+    tabSize: metrics.tabSize,
+    ...(metrics.fontFamily ? { fontFamily: metrics.fontFamily } : {}),
     theme: resolveRequestedTheme(),
     ...(isDiff.value ? { diffAppearance: effectiveDiffAppearance.value } : {}),
     onThemeChange() {
@@ -1471,15 +1673,11 @@ function buildRuntimeMonacoOptions() {
     },
   } as Record<string, any>
 
-  if (isDiff.value) {
-    const metrics = preFallbackMetrics.value
-    nextOptions.fontSize ??= metrics.fontSize
-    nextOptions.lineHeight ??= metrics.lineHeight
-    nextOptions.padding ??= { top: metrics.paddingTop, bottom: metrics.paddingBottom }
-    nextOptions.tabSize ??= metrics.tabSize
-    if (metrics.fontFamily)
-      nextOptions.fontFamily ??= metrics.fontFamily
-  }
+  const configuredUnsafeCSS = typeof nextOptions.unsafeCSS === 'string'
+    ? nextOptions.unsafeCSS
+    : ''
+  nextOptions.unsafeCSS = `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim()
 
   return nextOptions
 }
@@ -1614,6 +1812,7 @@ function stopExpandAutoResize() {
 }
 
 onUnmounted(() => {
+  isUnmounted = true
   // Ensure any RAF loops are stopped and editor resources are released
   stopExpandAutoResize()
   clearInlineFoldProxies()
@@ -1639,7 +1838,7 @@ onUnmounted(() => {
     v-if="usePreCodeRender"
     class="code-pre-fallback"
     :node="node"
-    :show-line-numbers="isDiff"
+    :show-line-numbers="true"
     :diff-inline="preFallbackDiffInline"
     :style="preFallbackStyle"
   />
@@ -1647,6 +1846,9 @@ onUnmounted(() => {
     v-else
     ref="container"
     :style="containerStyle"
+    data-markstream-code-block="1"
+    :data-markstream-enhanced="editorReady ? 'true' : 'false'"
+    :data-markstream-enhancement-state="editorReady ? 'ready' : 'pending'"
     class="code-block-container my-4 rounded-lg border overflow-hidden shadow-sm"
     :class="[
       resolvedSurfaceIsDark ? 'border-gray-700/30 bg-gray-900' : 'border-gray-200 bg-white',
@@ -1661,19 +1863,23 @@ onUnmounted(() => {
     >
       <!-- left slot / fallback language label -->
       <slot name="header-left">
-        <div class="flex items-center space-x-2 flex-1 overflow-hidden">
+        <div class="code-header-main">
           <span class="icon-slot h-4 w-4 flex-shrink-0" v-html="languageIcon" />
-          <span class="text-sm font-medium font-mono truncate">{{ displayLanguage }}</span>
+          <div class="code-header-copy">
+            <div class="code-header-title">
+              {{ displayLanguage }}
+            </div>
+          </div>
         </div>
       </slot>
 
       <!-- right slot / fallback action buttons -->
       <slot name="header-right">
-        <div class="flex items-center space-x-2">
+        <div class="code-header-actions">
           <button
             v-if="props.showCollapseButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-pressed="isCollapsed"
             @click="toggleHeaderCollapse"
             @mouseenter="onBtnHover($event, isCollapsed ? (t('common.expand') || 'Expand') : (t('common.collapse') || 'Collapse'))"
@@ -1681,12 +1887,12 @@ onUnmounted(() => {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg :style="{ rotate: isCollapsed ? '0deg' : '90deg' }" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18l6-6l-6-6" /></svg>
+            <svg :style="{ rotate: isCollapsed ? '0deg' : '90deg' }" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18l6-6l-6-6" /></svg>
           </button>
           <template v-if="props.showFontSizeButtons && props.enableFontSizeControl">
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="Number.isFinite(codeFontSize) ? codeFontSize <= codeFontMin : false"
               @click="decreaseCodeFont()"
               @mouseenter="onBtnHover($event, t('common.decrease') || 'Decrease')"
@@ -1694,11 +1900,11 @@ onUnmounted(() => {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14" /></svg>
             </button>
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="!fontBaselineReady || codeFontSize === defaultCodeFontSize"
               @click="resetCodeFont()"
               @mouseenter="onBtnHover($event, t('common.reset') || 'Reset')"
@@ -1706,11 +1912,11 @@ onUnmounted(() => {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></g></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></g></svg>
             </button>
             <button
               type="button"
-              class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+              class="code-action-btn transition-colors"
               :disabled="Number.isFinite(codeFontSize) ? codeFontSize >= codeFontMax : false"
               @click="increaseCodeFont()"
               @mouseenter="onBtnHover($event, t('common.increase') || 'Increase')"
@@ -1718,14 +1924,14 @@ onUnmounted(() => {
               @mouseleave="onBtnLeave"
               @blur="onBtnLeave"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7-7v14" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-7-7v14" /></svg>
             </button>
           </template>
 
           <button
             v-if="props.showCopyButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-label="copyText ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy')"
             @click="copy"
             @mouseenter="onCopyHover($event)"
@@ -1733,14 +1939,14 @@ onUnmounted(() => {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg v-if="!copyText" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></g></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5" /></svg>
+            <svg v-if="!copyText" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></g></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5" /></svg>
           </button>
 
           <button
             v-if="props.showExpandButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-pressed="isExpanded"
             @click="toggleExpand($event)"
             @mouseenter="onBtnHover($event, isExpanded ? (t('common.collapse') || 'Collapse') : (t('common.expand') || 'Expand'))"
@@ -1748,14 +1954,14 @@ onUnmounted(() => {
             @mouseleave="onBtnLeave"
             @blur="onBtnLeave"
           >
-            <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" /></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="w-3 h-3"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" /></svg>
+            <svg v-if="isExpanded" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" /></svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" width="1em" height="1em" viewBox="0 0 24 24" class="action-icon"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" /></svg>
           </button>
 
           <button
             v-if="isPreviewable && props.showPreviewButton"
             type="button"
-            class="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+            class="code-action-btn transition-colors"
             :aria-label="t('common.preview') || 'Preview'"
             @click="previewCode"
             @mouseenter="onBtnHover($event, t('common.preview') || 'Preview')"
@@ -1773,18 +1979,18 @@ onUnmounted(() => {
         ref="codeEditor"
         class="code-editor-container"
         :class="[stream ? '' : 'code-height-placeholder']"
-        :style="{ visibility: editorReady ? 'visible' : 'hidden' }"
+        :style="codeEditorContainerStyle"
+        :data-markstream-host-hidden="!editorReady ? 'true' : undefined"
         :aria-hidden="editorReady ? undefined : 'true'"
       />
-      <div v-if="!editorReady" class="code-editor-fallback-surface">
-        <PreCodeNode
-          class="code-pre-fallback"
-          :node="node"
-          :show-line-numbers="isDiff"
-          :diff-inline="preFallbackDiffInline"
-          :style="preFallbackStyle"
-        />
-      </div>
+      <PreCodeNode
+        v-if="!editorReady"
+        class="code-pre-fallback"
+        :node="node"
+        :show-line-numbers="true"
+        :diff-inline="preFallbackDiffInline"
+        :style="preFallbackStyle"
+      />
     </div>
     <HtmlPreviewFrame
       v-if="showInlinePreview && !hasPreviewListener && isPreviewable && codeLanguage === 'html'"
@@ -1813,12 +2019,14 @@ onUnmounted(() => {
 <style scoped>
 .code-block-container {
   contain: content;
-    /* 新增：显著减少离屏 codeblock 的布局/绘制与样式计算 */
-  content-visibility: auto;
-  contain-intrinsic-size: 320px 180px;
+  /* A fixed intrinsic height briefly collapses visible code blocks to 180px on
+     refresh before their Pre/editor geometry is measured. Keep code blocks in
+     normal layout; outer node virtualization already handles offscreen cost. */
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
   container-type: inline-size;
-  --markstream-code-fallback-bg: #ffffff;
-  --markstream-code-fallback-fg: #111827;
+  --markstream-code-fallback-bg: var(--code-bg, #fff);
+  --markstream-code-fallback-fg: var(--code-fg, hsl(0 0% 10%));
   --markstream-code-border-color: rgb(229 231 235);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
   --markstream-code-fallback-selection-bg: rgba(0, 0, 0, 0.06);
@@ -1885,7 +2093,7 @@ onUnmounted(() => {
 
 .code-block-container.is-dark {
   --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: #e5e7eb;
+  --markstream-code-fallback-fg: var(--code-fg, hsl(0 0% 93%));
   --markstream-code-border-color: rgb(55 65 81 / 0.3);
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
   --markstream-diff-frame-border: rgb(82 82 91 / 0.56);
@@ -1952,60 +2160,146 @@ onUnmounted(() => {
 }
 
 .code-editor-container {
-  transition: height 180ms ease, max-height 180ms ease;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  transition: none;
 }
 
 .code-block-header {
-  gap: var(--ms-gap-header, 16px);
-  padding: var(--ms-inset-panel-y, 0.625rem) var(--ms-inset-panel-x, 1rem);
-  border-bottom: 1px solid var(--code-border, var(--markstream-code-border-color, rgb(229 231 235)));
-  background: var(--code-header-bg, transparent);
-  color: var(--code-fg, inherit);
-  border-radius: var(--ms-radius, 0) var(--ms-radius, 0) 0 0;
+  box-sizing: content-box;
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-gap-header, 1rem);
+  min-height: 1.75rem;
+  padding: var(--ms-inset-panel-y, 0.375rem) var(--ms-inset-panel-x, 0.625rem);
+  border-bottom: 1px solid var(--code-border, var(--markstream-code-border-color, rgb(229 231 235)));
+  border-radius: var(--ms-radius, 0) var(--ms-radius, 0) 0 0;
+  background: var(--code-header-bg, transparent);
+  color: var(--code-fg, inherit);
+  font-family: var(--ms-font-sans, ui-sans-serif, system-ui, sans-serif);
+  line-height: 1.75;
+}
+
+.code-header-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--ms-gap-header-main, 0.625rem);
+  overflow: hidden;
+}
+
+.code-header-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.code-header-title {
+  overflow: hidden;
+  color: var(--code-action-fg, hsl(0 0% 43%));
+  font-family: inherit;
+  font-size: var(--ms-text-label, 0.75rem);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ms-gap-header-actions, 0.125rem);
+  margin-left: auto;
+}
+
+.code-block-header .code-action-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ms-action-btn-padding, 0.375rem);
+  border-radius: 0.25rem;
+  color: var(--code-action-fg, inherit);
+  line-height: 1;
+}
+
+.code-block-header .code-action-btn:hover {
+  background: var(--code-action-hover-bg);
+  color: var(--code-action-hover-fg);
+}
+
+.code-block-header .action-icon {
+  width: var(--ms-action-btn-icon, 0.875rem);
+  height: var(--ms-action-btn-icon, 0.875rem);
+  max-width: 1.25rem;
+  max-height: 1.25rem;
 }
 
 .code-editor-layer {
+  position: relative;
   display: grid;
   min-width: 0;
 }
 
 .code-editor-layer > .code-editor-container,
-.code-editor-layer > .code-editor-fallback-surface {
+.code-editor-layer > pre.code-pre-fallback {
   grid-area: 1 / 1;
 }
 
-.code-editor-fallback-surface {
-  overflow: auto;
-  padding: 1rem;
-}
-
-.code-block-container.is-diff .code-editor-fallback-surface {
-  padding: 0;
-  background: var(--markstream-diff-editor-bg);
-}
-
-.code-block-container ::v-deep pre.code-pre-fallback {
+.code-editor-layer > pre.code-pre-fallback {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+}
+
+.code-editor-container[data-markstream-host-hidden="true"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+pre.code-pre-fallback,
+.code-block-container ::v-deep pre.code-pre-fallback {
+  box-sizing: border-box;
+  width: 100%;
+  position: relative;
   margin: 0;
   white-space: pre;
   overflow: auto;
-  background: var(--vscode-editor-background, var(--markstream-code-fallback-bg));
-  color: var(--vscode-editor-foreground, var(--markstream-code-fallback-fg));
-  font-size: inherit;
-  line-height: inherit;
+  padding-left: var(--markstream-code-padding-left, 52px);
+  background: var(--markstream-code-fallback-bg, #ffffff);
+  color: var(--markstream-code-fallback-fg, #111827);
+  font-size: var(--vscode-editor-font-size, 12px);
+  line-height: var(--vscode-editor-line-height, 18px);
   font-family: var(
     --markstream-code-font-family,
-    Menlo,
+    "SF Mono",
     Monaco,
-    Courier New,
+    Consolas,
+    "Ubuntu Mono",
+    "Liberation Mono",
+    "Courier New",
     monospace
   );
-  font-weight: var(--vscode-editor-font-weight, 400);
+  font-weight: 400;
 }
 
+.code-block-container ::v-deep pre.code-pre-fallback.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+  padding-left: 0;
+}
+
+pre.code-pre-fallback.markstream-pre--diff-preview,
 .code-block-container ::v-deep pre.code-pre-fallback.markstream-pre--diff-preview {
   padding-left: 0;
   padding-right: 0;
@@ -2159,6 +2453,8 @@ onUnmounted(() => {
 }
 
 .code-action-btn {
+  cursor: pointer;
+  opacity: 1;
   font-family: inherit;
 }
 

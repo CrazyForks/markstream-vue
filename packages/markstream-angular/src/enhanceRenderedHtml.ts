@@ -644,6 +644,11 @@ async function renderMonaco(
     const originalPre = pre.cloneNode(true) as HTMLElement
     pre.replaceWith(shell.wrapper)
 
+    const configuredUnsafeCSS = typeof options.monacoOptions?.unsafeCSS === 'string'
+      ? options.monacoOptions.unsafeCSS
+      : ''
+    const runtimeUnsafeCSS = `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim()
     const helpers = monacoModule.useMonaco({
       themes: ['vitesse-dark', 'vitesse-light'],
       languages: Array.from(new Set([monacoLanguage, 'plaintext'])),
@@ -660,6 +665,10 @@ async function renderMonaco(
         ? { padding: { top: paddingTop ?? 0, bottom: paddingBottom ?? 0 } }
         : {}),
       ...(options.monacoOptions || {}),
+      // createEnhancedBlockShell already renders the code header. Prevent the
+      // enhanced runtime from adding a second `code.<language>` file header.
+      disableFileHeader: true,
+      unsafeCSS: runtimeUnsafeCSS,
     })
 
     try {

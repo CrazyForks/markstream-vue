@@ -1,6 +1,28 @@
-import { h } from 'vue-demi'
+import { defineAsyncComponent, h } from 'vue-demi'
 import { getKatex } from '../MathInlineNode/katex'
+import PreCodeNode from '../PreCodeNode'
 import TextNode from '../TextNode'
+import CodeBlockNodeLoading from './CodeBlockNodeLoading.vue'
+
+export { default as CodeBlockNodeLoading } from './CodeBlockNodeLoading.vue'
+
+export const CodeBlockNodeAsync = defineAsyncComponent({
+  loader: async () => {
+    try {
+      const mod = await import('../../components/CodeBlockNode')
+      return (mod as any).default ?? mod
+    }
+    catch (error) {
+      console.warn(
+        '[markstream-vue2] Optional peer dependency stream-diffs is missing. Falling back to preformatted code rendering. To enable enhanced code block features, please install "stream-diffs".',
+        error,
+      )
+      return PreCodeNode
+    }
+  },
+  loadingComponent: CodeBlockNodeLoading,
+  delay: 0,
+})
 
 function createMathFallbackNode(wrapper: (content: string) => string) {
   return (props: any) => {

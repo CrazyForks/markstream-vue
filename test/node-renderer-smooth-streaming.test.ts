@@ -162,6 +162,48 @@ describe('node renderer smooth streaming', () => {
     }
   })
 
+  it('keeps a split code fence info line atomic through the small-chunk reset path', async () => {
+    const queuedFrames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', ((cb: FrameRequestCallback) => {
+      queuedFrames.push(cb)
+      return queuedFrames.length
+    }) as typeof requestAnimationFrame)
+    vi.stubGlobal('cancelAnimationFrame', (() => {}) as typeof cancelAnimationFrame)
+
+    const wrapper = mount(NodeRenderer, {
+      props: {
+        content: '',
+        final: false,
+        smoothStreaming: true,
+        batchRendering: false,
+        viewportPriority: false,
+        deferNodesUntilVisible: false,
+      },
+    })
+
+    try {
+      await nextTick()
+      for (const content of ['```', '```type', '```typescript']) {
+        await wrapper.setProps({ content })
+        await nextTick()
+        const renderContent = wrapper.vm.$?.setupState?.renderContent as string | undefined
+        expect(renderContent).toBe('')
+        expect(wrapper.text()).not.toContain('Plain Text')
+      }
+
+      expect(queuedFrames).toHaveLength(0)
+      await wrapper.setProps({ content: '```typescript\n' })
+      await nextTick()
+
+      const renderContent = wrapper.vm.$?.setupState?.renderContent as string | undefined
+      expect(renderContent).toBe('```typescript\n')
+      expect(wrapper.text()).not.toContain('Plain Text')
+    }
+    finally {
+      wrapper.unmount()
+    }
+  })
+
   it('does not flush a large paced backlog when small chunks follow it', async () => {
     const queuedFrames: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', ((cb: FrameRequestCallback) => {

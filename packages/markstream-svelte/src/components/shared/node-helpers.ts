@@ -46,6 +46,7 @@ export type NodeRendererCodeBlockProps = Partial<{
   showPreviewButton: boolean
   showCollapseButton: boolean
   showFontSizeButtons: boolean
+  showLineNumbers: boolean
   htmlPreviewAllowScripts: boolean
   htmlPreviewSandbox: string
 }> & Record<string, unknown>

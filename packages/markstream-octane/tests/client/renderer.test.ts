@@ -56,6 +56,28 @@ describe('markstream-octane client renderer', () => {
     expect(container.querySelector('.markstream-octane')).not.toBeNull()
   })
 
+  it('forwards non-diff line numbers to pre-only code blocks', () => {
+    const markdown = [
+      '```ts',
+      'const one = 1',
+      'const two = 2',
+      '```',
+    ].join('\n')
+    const { container } = render(NodeRenderer, {
+      props: {
+        ...stableRendererProps,
+        content: markdown,
+        final: true,
+        renderCodeBlocksAsPre: true,
+        codeBlockProps: { showLineNumbers: true },
+      },
+    })
+
+    const pre = container.querySelector('pre[data-markstream-line-numbers="1"]')
+    expect(pre).not.toBeNull()
+    expect(pre?.querySelector('.markstream-pre__line-numbers-text')?.textContent).toBe('1\n2')
+  })
+
   it('updates the same mounted renderer as streamed content grows', () => {
     const view = render(NodeRenderer, {
       props: {

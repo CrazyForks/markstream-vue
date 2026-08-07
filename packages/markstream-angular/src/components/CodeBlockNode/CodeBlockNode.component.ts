@@ -17,6 +17,14 @@ import { PreCodeNodeComponent } from '../PreCodeNode/PreCodeNode.component'
 import { getString } from '../shared/node-helpers'
 import { HtmlPreviewFrameComponent } from './HtmlPreviewFrame.component'
 
+const defaultCodeFontFamily = '"SF Mono", Monaco, Consolas, "Ubuntu Mono", "Liberation Mono", "Courier New", monospace'
+const defaultCodeFontSize = 12
+const defaultCodeLineHeight = 18
+
+function readPositiveCodeMetric(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
 interface MonacoHelpers {
   createEditor?: (container: HTMLElement, code: string, language: string) => Promise<unknown> | unknown
   createDiffEditor?: (container: HTMLElement, original: string, modified: string, language: string) => Promise<unknown> | unknown
@@ -214,13 +222,28 @@ function extractCodeBlockFileLabel(raw: unknown) {
         [class.code-block-body--expanded]="expanded"
       >
         <ng-container *ngIf="!showLoadingPlaceholder; else loadingTpl">
-          <markstream-angular-pre-code-node *ngIf="useFallback; else editorTpl" [node]="node" [showLineNumbers]="true" />
+          <markstream-angular-pre-code-node
+            *ngIf="useFallback; else editorTpl"
+            class="code-editor-fallback-surface"
+            [node]="node"
+            [ngStyle]="preFallbackStyle"
+            [showLineNumbers]="true"
+          />
 
           <ng-template #editorTpl>
-            <div #editorHost class="code-editor-container" [style.visibility]="editorReady ? 'visible' : 'hidden'"></div>
-            <div *ngIf="!editorReady" style="position:absolute; inset:0; overflow:auto; padding:1rem;">
-              <pre class="code-fallback-plain m-0" [attr.aria-busy]="resolvedLoading" [attr.aria-label]="ariaLabel" tabindex="0"><code translate="no" [style.fontSize.px]="fontSize" [textContent]="resolvedCode"></code></pre>
-            </div>
+            <div
+              #editorHost
+              class="code-editor-container"
+              [style.visibility]="editorReady ? 'visible' : 'hidden'"
+              [attr.aria-hidden]="editorReady ? null : 'true'"
+            ></div>
+            <markstream-angular-pre-code-node
+              *ngIf="!editorReady"
+              class="code-editor-fallback-surface"
+              [node]="node"
+              [ngStyle]="preFallbackStyle"
+              [showLineNumbers]="true"
+            />
           </ng-template>
         </ng-container>
       </div>
@@ -266,13 +289,16 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
   expanded = false
   inlinePreviewOpen = false
   editorReady = false
-  defaultFontSize = 14
-  fontSize = 14
+  defaultFontSize = defaultCodeFontSize
+  fontSize = defaultCodeFontSize
 
   private helpers: MonacoHelpers | null = null
+  private runtimeMonacoOptions: Record<string, any> | null = null
   private createPromise: Promise<void> | null = null
   private syncPromise: Promise<void> | null = null
   private editorKind: 'single' | 'diff' | null = null
+  private editorStreamMode: boolean | null = null
+  private lifecycleId = 0
   private viewReady = false
   private destroyed = false
   private copyTimer: number | null = null
@@ -429,11 +455,11 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   get headerForeground() {
-    return `var(--code-action-fg, var(--vscode-editor-foreground, ${this.resolvedIsDark ? '#e5e7eb' : '#111827'}))`
+    return 'var(--code-action-fg, var(--code-fg))'
   }
 
   get headerBackground() {
-    return `var(--code-header-bg, var(--vscode-editor-background, ${this.resolvedIsDark ? '#111827' : '#ffffff'}))`
+    return 'var(--code-header-bg, var(--code-bg))'
   }
 
   get headerTitle() {
@@ -471,6 +497,33 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
     return style
   }
 
+  get preFallbackStyle(): Record<string, string> {
+    const options = this.resolvedMonacoOptions
+    const fontSize = readPositiveCodeMetric(this.fontSize) ?? defaultCodeFontSize
+    const lineHeight = readPositiveCodeMetric(options.lineHeight)
+      ?? (fontSize === defaultCodeFontSize ? defaultCodeLineHeight : Math.max(12, Math.round(fontSize * 1.5)))
+    const padding = options.padding && typeof options.padding === 'object'
+      ? options.padding as Record<string, unknown>
+      : null
+    const defaultPadding = this.isDiff ? 0 : 8
+    const paddingTop = readPositiveCodeMetric(padding?.top) ?? (padding?.top === 0 ? 0 : defaultPadding)
+    const paddingBottom = readPositiveCodeMetric(padding?.bottom) ?? (padding?.bottom === 0 ? 0 : defaultPadding)
+    const fontFamily = typeof options.fontFamily === 'string' && options.fontFamily.trim()
+      ? options.fontFamily.trim()
+      : defaultCodeFontFamily
+
+    return {
+      '--markstream-code-font-family': fontFamily,
+      '--markstream-code-padding-y': `${paddingTop}px`,
+      '--markstream-code-padding-bottom': `${paddingBottom}px`,
+      '--vscode-editor-font-size': `${fontSize}px`,
+      '--vscode-editor-line-height': `${lineHeight}px`,
+      'font-family': fontFamily,
+      'font-size': `${fontSize}px`,
+      'line-height': `${lineHeight}px`,
+    }
+  }
+
   readonly closeInlinePreview = () => {
     this.inlinePreviewOpen = false
     this.cdr.markForCheck()
@@ -491,6 +544,7 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
 
   ngOnDestroy() {
     this.destroyed = true
+    this.lifecycleId += 1
     if (this.copyTimer != null && typeof window !== 'undefined')
       window.clearTimeout(this.copyTimer)
     this.cancelDeferredHeightSync()
@@ -573,12 +627,17 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   private applyInitialFontSize() {
+    const previousDefault = this.defaultFontSize
     const initial = Number(this.resolvedMonacoOptions.fontSize)
-    this.defaultFontSize = Number.isFinite(initial) && initial > 0 ? initial : 14
-    if (!(typeof this.fontSize === 'number' && Number.isFinite(this.fontSize) && this.fontSize > 0))
+    this.defaultFontSize = Number.isFinite(initial) && initial > 0 ? initial : defaultCodeFontSize
+    if (
+      !(typeof this.fontSize === 'number' && Number.isFinite(this.fontSize) && this.fontSize > 0)
+      || this.fontSize === previousDefault
+      || this.fontSize < 10
+      || this.fontSize > 36
+    ) {
       this.fontSize = this.defaultFontSize
-    if (this.fontSize < 10 || this.fontSize > 36)
-      this.fontSize = this.defaultFontSize
+    }
   }
 
   private async syncEditorState() {
@@ -608,16 +667,22 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
     this.syncPromise = (async () => {
       try {
         const desiredKind = this.isDiff && typeof this.helpers?.createDiffEditor === 'function' ? 'diff' : 'single'
-        if (this.editorKind !== desiredKind) {
-          await this.recreateEditor(desiredKind)
+        const desiredStreamMode = this.resolvedLoading !== false
+        if (
+          this.editorKind !== desiredKind
+          || this.editorStreamMode !== desiredStreamMode
+          || !this.hasRenderedEditorDom(desiredKind)
+        ) {
+          await this.recreateEditor(desiredKind, desiredStreamMode)
         }
         else {
           await this.updateEditor()
         }
         await Promise.resolve(this.helpers?.setTheme?.(this.resolvedIsDark ? this.resolvedDarkTheme : this.resolvedLightTheme))
         this.applyEditorFontSize()
-        if (this.expanded || !this.resolvedLoading || !this.editorReady)
-          this.applyEditorHeight()
+        const creationId = this.lifecycleId
+        if (!await this.prepareEditorHandoff(desiredKind, creationId))
+          return
         this.editorReady = true
         this.scheduleDeferredHeightSync()
       }
@@ -648,20 +713,33 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
         return
       }
 
+      const configuredUnsafeCSS = typeof this.resolvedMonacoOptions.unsafeCSS === 'string'
+        ? this.resolvedMonacoOptions.unsafeCSS
+        : ''
       const options = {
         wordWrap: 'on',
+        stream: this.resolvedLoading !== false,
         wrappingIndent: 'same',
         readOnly: true,
         minimap: { enabled: false },
         lineNumbers: 'on',
         revealDebounceMs: 75,
         MAX_HEIGHT: 500,
+        fontFamily: defaultCodeFontFamily,
         fontSize: this.defaultFontSize,
+        lineHeight: defaultCodeLineHeight,
+        padding: this.isDiff ? { top: 0, bottom: 0 } : { top: 8, bottom: 8 },
         themes: this.resolvedThemes,
         theme: this.resolvedIsDark ? this.resolvedDarkTheme : this.resolvedLightTheme,
         ...(this.resolvedMonacoOptions || {}),
+        // The Angular shell already owns the language/file header. Keep the
+        // enhanced surface headerless so it matches the Vue 3 handoff contract.
+        disableFileHeader: true,
+        unsafeCSS: `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim(),
       }
 
+      this.runtimeMonacoOptions = options
       this.helpers = monacoModule.useMonaco(options)
     })()
 
@@ -673,14 +751,19 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
     }
   }
 
-  private async recreateEditor(kind: 'single' | 'diff') {
+  private async recreateEditor(kind: 'single' | 'diff', streamMode: boolean) {
     const host = this.editorHost?.nativeElement
     if (!host || !this.helpers)
       return
 
+    this.editorReady = false
+    this.lifecycleId += 1
     this.cleanupEditor()
     host.innerHTML = ''
     this.editorKind = kind
+    this.editorStreamMode = streamMode
+    if (this.runtimeMonacoOptions)
+      this.runtimeMonacoOptions.stream = streamMode
 
     if (kind === 'diff') {
       await Promise.resolve(this.helpers.createDiffEditor?.(
@@ -711,6 +794,65 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
     await Promise.resolve(this.helpers.updateCode?.(this.resolvedCode, this.monacoLanguage))
   }
 
+  private hasRenderedEditorDom(kind: 'single' | 'diff') {
+    const host = this.editorHost?.nativeElement
+    if (!host)
+      return false
+    const monacoSelector = kind === 'diff' ? '.monaco-diff-editor' : '.monaco-editor'
+    return !!host.querySelector([
+      monacoSelector,
+      'diffs-container',
+      '.stream-diffs-shell',
+      '[data-stream-diffs-state]',
+    ].join(','))
+  }
+
+  private getVisualEditorSurface() {
+    return this.editorHost?.nativeElement.querySelector<HTMLElement>([
+      '.monaco-diff-editor',
+      '.monaco-editor',
+      'diffs-container',
+      '[data-stream-diffs-state]',
+      '.stream-diffs-shell',
+    ].join(',')) ?? null
+  }
+
+  private isEditorVisuallyReady(kind: 'single' | 'diff') {
+    const host = this.editorHost?.nativeElement
+    if (!host || !this.hasRenderedEditorDom(kind) || typeof window === 'undefined')
+      return false
+    const surface = this.getVisualEditorSurface()
+    if (!surface)
+      return false
+    const rect = surface.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0)
+      return false
+    const style = window.getComputedStyle(surface)
+    return style.display !== 'none'
+      && Number.parseFloat(style.opacity || '1') > 0.01
+  }
+
+  private async prepareEditorHandoff(kind: 'single' | 'diff', creationId: number) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (this.destroyed || creationId !== this.lifecycleId)
+        return false
+      this.applyEditorHeight(true)
+      await this.nextAnimationFrame()
+      if (this.isEditorVisuallyReady(kind)) {
+        this.applyEditorHeight(true)
+        await this.nextAnimationFrame()
+        return this.isEditorVisuallyReady(kind)
+      }
+    }
+    return false
+  }
+
+  private nextAnimationFrame() {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function')
+      return Promise.resolve()
+    return new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+  }
+
   private applyEditorFontSize() {
     const view = this.editorKind === 'diff'
       ? this.helpers?.getDiffEditorView?.()
@@ -723,7 +865,7 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
     catch {}
   }
 
-  private applyEditorHeight() {
+  private applyEditorHeight(_preparing = false) {
     const host = this.editorHost?.nativeElement
     if (!host)
       return
@@ -839,6 +981,7 @@ export class CodeBlockNodeComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   private cleanupEditor() {
+    this.cancelDeferredHeightSync()
     try {
       this.helpers?.safeClean?.()
     }

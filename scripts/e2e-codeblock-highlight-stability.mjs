@@ -164,7 +164,7 @@ function isDarkColor(color) {
 async function collectRegression(page) {
   await page.locator('#delay').fill('4')
   await page.locator('#chunk').fill('16')
-  await page.getByRole('button', { name: 'Reset' }).click()
+  await page.getByRole('button', { name: 'Render all' }).click()
 
   const seenHighlightBlocks = new Set()
   const regressedBlocks = new Set()
@@ -217,8 +217,13 @@ async function collectRegression(page) {
     }
     maxVisibleFallbacks = Math.max(maxVisibleFallbacks, visibleFallbacks)
 
-    if (snapshot.progress === 100)
+    if (
+      snapshot.progress === 100
+      && snapshot.blocks.length > 0
+      && snapshot.blocks.every(block => block.hasRenderContent)
+    ) {
       break
+    }
 
     await page.waitForTimeout(120)
   }
@@ -246,6 +251,8 @@ async function collectStyleSnapshot(page) {
       return {
         index,
         title: titleEl?.textContent?.trim() || '',
+        source: render?.textContent || '',
+        height: block.getBoundingClientRect().height,
         hasRenderContent: renderHasContent,
         containerBackground: blockStyle.backgroundColor,
         containerForeground: blockStyle.color,
@@ -254,6 +261,101 @@ async function collectStyleSnapshot(page) {
       }
     })
   })
+}
+
+async function collectReloadHandoff(page, expectedBlocks) {
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('#delay', { timeout: 30000 })
+  await page.getByRole('button', { name: 'Render all' }).click()
+
+  const enhancedBlocks = new Set()
+  const regressedBlocks = new Set()
+  const minimumHeights = new Map()
+  let stableEnhancedSamples = 0
+
+  const start = Date.now()
+  while (Date.now() - start < 20000) {
+    const blocks = await page.evaluate(() => {
+      const isVisible = (element) => {
+        if (!element || !element.textContent?.length)
+          return false
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0.05
+          && rect.width > 0
+          && rect.height > 0
+      }
+
+      return Array.from(document.querySelectorAll('.code-block-container')).map((block, index) => {
+        const render = block.querySelector('.code-block-render')
+        const fallback = block.querySelector('.code-fallback-plain')
+        return {
+          index,
+          height: block.getBoundingClientRect().height,
+          source: render?.textContent || fallback?.textContent || '',
+          enhancedVisible: isVisible(render),
+          fallbackVisible: isVisible(fallback),
+        }
+      })
+    })
+
+    for (const block of blocks) {
+      if (block.source.length > 0) {
+        minimumHeights.set(
+          block.index,
+          Math.min(minimumHeights.get(block.index) ?? Number.POSITIVE_INFINITY, block.height),
+        )
+      }
+      if (block.enhancedVisible)
+        enhancedBlocks.add(block.index)
+      if (enhancedBlocks.has(block.index) && block.fallbackVisible)
+        regressedBlocks.add(block.index)
+    }
+
+    const allEnhanced = blocks.length === expectedBlocks.length
+      && blocks.every(block => block.enhancedVisible)
+    stableEnhancedSamples = allEnhanced ? stableEnhancedSamples + 1 : 0
+    if (stableEnhancedSamples >= 5)
+      break
+
+    await page.waitForTimeout(80)
+  }
+
+  const finalBlocks = await collectStyleSnapshot(page)
+  const sourceMismatchBlocks = new Set(finalBlocks
+    .filter((block, index) => block.source !== expectedBlocks[index]?.source)
+    .map(block => block.index))
+  if (finalBlocks.length !== expectedBlocks.length) {
+    const sharedLength = Math.min(finalBlocks.length, expectedBlocks.length)
+    for (let index = sharedLength; index < Math.max(finalBlocks.length, expectedBlocks.length); index++)
+      sourceMismatchBlocks.add(index)
+  }
+
+  const collapsedBlocks = finalBlocks
+    .filter((block) => {
+      const minimumHeight = minimumHeights.get(block.index)
+      return minimumHeight != null
+        && block.height >= 48
+        && minimumHeight < block.height * 0.5
+    })
+    .map(block => ({
+      index: block.index,
+      minimumHeight: Math.round(minimumHeights.get(block.index)),
+      finalHeight: Math.round(block.height),
+    }))
+
+  return {
+    expectedBlockCount: expectedBlocks.length,
+    finalBlockCount: finalBlocks.length,
+    expectedSourceLength: expectedBlocks.reduce((sum, block) => sum + block.source.length, 0),
+    finalSourceLength: finalBlocks.reduce((sum, block) => sum + block.source.length, 0),
+    enhancedBlocks: Array.from(enhancedBlocks),
+    regressedBlocks: Array.from(regressedBlocks),
+    sourceMismatchBlocks: Array.from(sourceMismatchBlocks),
+    collapsedBlocks,
+  }
 }
 
 async function main() {
@@ -273,7 +375,7 @@ async function main() {
     })
     page.on('pageerror', error => pageErrors.push(String(error)))
 
-    const url = `http://${host}:${port}/`
+    const url = `http://${host}:${port}/?probe=1`
     await page.goto(url, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('#delay', { timeout: 30000 })
     await page.waitForSelector('.meta', { timeout: 30000 })
@@ -281,6 +383,7 @@ async function main() {
     const regression = await collectRegression(page)
     await page.waitForTimeout(600)
     const styleSnapshot = await collectStyleSnapshot(page)
+    const reloadHandoff = await collectReloadHandoff(page, styleSnapshot)
     const screenshot = '/tmp/vue2-cli-codeblock-highlight-stability.png'
     await page.screenshot({ path: screenshot, fullPage: true })
     await browser.close()
@@ -306,6 +409,9 @@ async function main() {
       .filter(block => /:/.test(block.title) || /shellscript/i.test(block.title))
       .map(block => ({ index: block.index, title: block.title }))
 
+    const knownVueWarnings = consoleErrors.filter(error => error.includes('infinite update loop in a component render function'))
+    const unexpectedConsoleErrors = consoleErrors.filter(error => !error.includes('infinite update loop in a component render function'))
+
     const result = {
       url,
       ...regression,
@@ -314,7 +420,9 @@ async function main() {
       desyncedBackgroundBlocks,
       lowContrastBlocks,
       unnormalizedTitleBlocks,
-      consoleErrorCount: consoleErrors.length,
+      reloadHandoff,
+      consoleErrorCount: unexpectedConsoleErrors.length,
+      knownVueWarningCount: knownVueWarnings.length,
       pageErrorCount: pageErrors.length,
       screenshot,
     }
@@ -341,6 +449,18 @@ async function main() {
     }
     if (result.unnormalizedTitleBlocks.length > 0) {
       throw new Error(`Detected unnormalized code block titles: ${result.unnormalizedTitleBlocks.map(block => `${block.index}:${block.title}`).join(', ')}`)
+    }
+    if (result.reloadHandoff.sourceMismatchBlocks.length > 0) {
+      throw new Error(`Detected incomplete code source after reload on blocks: ${result.reloadHandoff.sourceMismatchBlocks.join(', ')}`)
+    }
+    if (result.reloadHandoff.enhancedBlocks.length !== result.reloadHandoff.expectedBlockCount) {
+      throw new Error(`Enhanced code surface did not become visible after reload (${result.reloadHandoff.enhancedBlocks.length}/${result.reloadHandoff.expectedBlockCount})`)
+    }
+    if (result.reloadHandoff.regressedBlocks.length > 0) {
+      throw new Error(`Detected fallback regression after reload on blocks: ${result.reloadHandoff.regressedBlocks.join(', ')}`)
+    }
+    if (result.reloadHandoff.collapsedBlocks.length > 0) {
+      throw new Error(`Detected code block height collapse after reload: ${result.reloadHandoff.collapsedBlocks.map(block => `${block.index}:${block.minimumHeight}px/${block.finalHeight}px`).join(', ')}`)
     }
   }
   catch (error) {

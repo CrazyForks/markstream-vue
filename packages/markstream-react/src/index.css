@@ -22,6 +22,24 @@
   --secondary: 210 40% 96%;
   --muted: 210 40% 96%;
   --muted-foreground: 215.4 16.3% 46.9%;
+  --ms-font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --ms-text-label: 0.75rem;
+  --ms-action-btn-padding: 0.375rem;
+  --ms-action-btn-icon: 0.875rem;
+  --ms-inset-panel-x: 0.625rem;
+  --ms-inset-panel-y: 0.375rem;
+  --ms-gap-header: 1rem;
+  --ms-gap-header-main: 0.625rem;
+  --ms-gap-header-actions: 0.125rem;
+  /* Unified default code surface; explicit editor themes may override it. */
+  --code-bg: #fff;
+  --code-fg: hsl(0 0% 10%);
+  --code-border: hsl(0 0% 87%);
+  --code-header-bg: hsl(0 0% 93.5%);
+  --code-action-fg: hsl(0 0% 43%);
+  --code-action-hover-bg: hsl(0 0% 91%);
+  --code-action-hover-fg: hsl(0 0% 10%);
+  --code-line-number: hsl(0 0% 43%);
 }
 
 
@@ -34,6 +52,14 @@
   --secondary: 217.2 32.6% 17.5%;
   --muted: 217.2 32.6% 17.5%;
   --muted-foreground: 215 20.2% 65.1%;
+  --code-bg: #111827;
+  --code-fg: hsl(0 0% 93%);
+  --code-border: hsl(0 0% 20%);
+  --code-header-bg: hsl(0 0% 16%);
+  --code-action-fg: hsl(0 0% 60%);
+  --code-action-hover-bg: hsl(0 0% 24%);
+  --code-action-hover-fg: hsl(0 0% 93%);
+  --code-line-number: hsl(0 0% 60%);
 }
 
 :where(.markstream-react).markdown-renderer {
@@ -546,20 +572,27 @@
 }
 
 :where(.markstream-react) .code-block-header {
+  box-sizing: content-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ms-gap-header, 0.75rem);
-  padding: 0.65rem 0.9rem;
+  gap: var(--ms-gap-header, 1rem);
+  min-height: 1.75rem;
+  padding: var(--ms-inset-panel-y, 0.375rem) var(--ms-inset-panel-x, 0.625rem);
   background: var(--code-header-bg, rgba(15, 23, 42, 0.85));
   border-bottom: 1px solid var(--code-border, rgba(148, 163, 184, 0.2));
-  color: var(--code-action-fg, inherit);
+  color: var(--code-fg, inherit);
+  font-family: var(--ms-font-sans, ui-sans-serif, system-ui, sans-serif);
+  line-height: 1.75;
 }
 
 :where(.markstream-react) .code-block-header .code-header-main {
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
+  gap: var(--ms-gap-header-main, 0.625rem);
+  overflow: hidden;
 }
 
 :where(.markstream-react) .code-block-header .code-header-copy {
@@ -572,9 +605,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--ms-text-label, 13px);
+  font-size: var(--ms-text-label, 0.75rem);
   font-weight: 500;
-  color: var(--code-header-title, inherit);
+  font-family: inherit;
+  color: var(--code-action-fg, hsl(0 0% 43%));
 }
 
 :where(.markstream-react) .code-block-header .code-header-caption {
@@ -585,8 +619,36 @@
   color: var(--code-line-number, var(--markstream-diff-line-number, #6b7280));
 }
 
+:where(.markstream-react) .code-block-header .code-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ms-gap-header-actions, 0.125rem);
+  margin-left: auto;
+}
+
 :where(.markstream-react) .code-block-header .code-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: var(--ms-action-btn-padding, 0.375rem);
+  border-radius: 0.25rem;
   color: var(--code-action-fg, inherit);
+  line-height: 1;
+}
+
+:where(.markstream-react) .code-block-header .code-action-btn:hover {
+  background: var(--code-action-hover-bg);
+  color: var(--code-action-hover-fg);
+}
+
+:where(.markstream-react) .code-block-header .action-icon {
+  width: var(--ms-action-btn-icon, 0.875rem);
+  height: var(--ms-action-btn-icon, 0.875rem);
+  max-width: 1.25rem;
+  max-height: 1.25rem;
 }
 
 
@@ -1089,12 +1151,15 @@
 
 :where(.markstream-react) .code-block-container {
   contain: content;
-  content-visibility: auto;
-  contain-intrinsic-size: 320px 180px;
+  /* A fixed intrinsic height briefly collapses visible code blocks to 180px on
+     refresh before their Pre/editor geometry is measured. Keep code blocks in
+     normal layout; outer node virtualization already handles offscreen cost. */
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
   container-type: inline-size;
-  --markstream-code-fallback-bg: #ffffff;
-  --markstream-code-fallback-fg: #111827;
-  --markstream-code-border-color: rgb(229 231 235);
+  --markstream-code-fallback-bg: #fff;
+  --markstream-code-fallback-fg: var(--code-fg);
+  --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: rgba(0, 0, 0, 0.06);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
   --markstream-diff-frame-border: rgb(203 213 225 / 0.56);
@@ -1160,8 +1225,8 @@
 
 :where(.markstream-react) .code-block-container.is-dark {
   --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: #e5e7eb;
-  --markstream-code-border-color: rgb(55 65 81 / 0.3);
+  --markstream-code-fallback-fg: hsl(0 0% 93%);
+  --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
   --markstream-diff-frame-border: rgb(82 82 91 / 0.56);
   --markstream-diff-frame-shadow: 0 18px 40px -30px rgb(0 0 0 / 0.84);
@@ -1230,6 +1295,11 @@
   transition: height 180ms ease, max-height 180ms ease;
 }
 
+:where(.markstream-react) .code-editor-container[data-markstream-host-hidden='true'] {
+  height: var(--markstream-editor-initial-height);
+  min-height: var(--markstream-editor-initial-height);
+}
+
 :where(.markstream-react) .code-block-container.is-plain-text:not(.is-diff) .monaco-editor,
 :where(.markstream-react) .code-block-container.is-plain-text:not(.is-diff) .monaco-editor .monaco-editor-background,
 :where(.markstream-react) .code-block-container.is-plain-text:not(.is-diff) .monaco-editor .margin,
@@ -1248,12 +1318,6 @@
 
 :where(.markstream-react) .code-action-btn {
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-:where(.markstream-react) .code-action-btn:hover {
-  opacity: 1;
 }
 
 :where(.markstream-react) .code-action-btn:disabled {
@@ -1291,7 +1355,7 @@
 
 :where(.markstream-react) .code-editor-fallback-surface {
   overflow: auto;
-  padding: 1rem;
+  padding: 0;
 }
 
 :where(.markstream-react) .code-block-container.is-diff .code-editor-fallback-surface {
@@ -1483,6 +1547,25 @@
   line-height: inherit;
 }
 
+:where(.markstream-react) pre[data-markstream-pre='1']:not(.code-fallback-plain):not(.markstream-pre--diff-preview) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--code-bg, #fff);
+  color: var(--code-fg);
+  box-shadow: none;
+}
+
+:where(.markstream-react) pre[data-markstream-pre='1']:not(.code-fallback-plain):not(.markstream-pre--diff-preview) > code {
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
 :where(.markstream-react) .code-fallback-plain {
   position: relative;
   z-index: 1;
@@ -1504,11 +1587,11 @@
 }
 
 /* ── Non-diff line numbers (vue3 parity) ─────────────────────────────────── */
-:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers {
+:where(.markstream-react) pre.markstream-pre--line-numbers {
   position: relative;
 }
 
-:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers > .markstream-pre__line-numbers {
+:where(.markstream-react) pre.markstream-pre--line-numbers > .markstream-pre__line-numbers {
   position: absolute;
   top: var(--markstream-pre-line-number-top, 0);
   left: var(--markstream-pre-line-number-left, 0);
@@ -1520,7 +1603,9 @@
   min-width: var(--markstream-pre-line-number-width, 2ch);
   padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
   padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
-  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid var(--code-bg, var(--markstream-code-fallback-bg));
+  /* stream-diffs keeps the 2px gutter separator transparent. Preserve the
+     same layout width here without drawing a visible rule during handoff. */
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
   color: var(--code-line-number, var(--markstream-diff-line-number, #6b7280));
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -1529,14 +1614,14 @@
   user-select: none;
 }
 
-:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers > .markstream-pre__line-numbers > .markstream-pre__line-numbers-text {
+:where(.markstream-react) pre.markstream-pre--line-numbers > .markstream-pre__line-numbers > .markstream-pre__line-numbers-text {
   display: block;
   min-height: 1lh;
   text-align: right;
   white-space: pre;
 }
 
-:where(.markstream-react) .code-fallback-plain.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+:where(.markstream-react) pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
   box-sizing: border-box;
   min-width: 100%;
   padding-left: var(--markstream-code-padding-left, 52px);

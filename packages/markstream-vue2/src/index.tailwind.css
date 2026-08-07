@@ -6,6 +6,23 @@
   --secondary: 210 40% 96%;
   --muted: 210 40% 96%;
   --muted-foreground: 215.4 16.3% 46.9%;
+  --ms-font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --ms-text-label: 0.75rem;
+  --ms-action-btn-padding: 0.375rem;
+  --ms-action-btn-icon: 0.875rem;
+  --ms-inset-panel-x: 0.625rem;
+  --ms-inset-panel-y: 0.375rem;
+  --ms-gap-header: 1rem;
+  --ms-gap-header-main: 0.625rem;
+  --ms-gap-header-actions: 0.125rem;
+  --code-bg: #fff;
+  --code-fg: hsl(0 0% 10%);
+  --code-border: hsl(0 0% 87%);
+  --code-header-bg: hsl(0 0% 93.5%);
+  --code-action-fg: hsl(0 0% 43%);
+  --code-action-hover-bg: hsl(0 0% 91%);
+  --code-action-hover-fg: hsl(0 0% 10%);
+  --code-line-number: hsl(0 0% 43%);
 }
 
 .dark .markstream-vue2,
@@ -16,6 +33,14 @@
   --secondary: 217.2 32.6% 17.5%;
   --muted: 217.2 32.6% 17.5%;
   --muted-foreground: 215 20.2% 65.1%;
+  --code-bg: #111827;
+  --code-fg: hsl(0 0% 93%);
+  --code-border: hsl(0 0% 20%);
+  --code-header-bg: hsl(0 0% 16%);
+  --code-action-fg: hsl(0 0% 60%);
+  --code-action-hover-bg: hsl(0 0% 24%);
+  --code-action-hover-fg: hsl(0 0% 93%);
+  --code-line-number: hsl(0 0% 60%);
 }
 
 :where(.markstream-vue2) button {

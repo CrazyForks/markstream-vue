@@ -24,6 +24,40 @@ function createController(options: SmoothMarkdownStreamOptions = {}) {
   return createSmoothMarkdownStream(options)
 }
 
+function createRafHarness() {
+  let nextId = 1
+  const callbacks = new Map<number, FrameRequestCallback>()
+
+  vi.stubGlobal('requestAnimationFrame', ((callback: FrameRequestCallback) => {
+    const id = nextId++
+    callbacks.set(id, callback)
+    return id
+  }) as typeof requestAnimationFrame)
+  vi.stubGlobal('cancelAnimationFrame', ((id: number) => {
+    callbacks.delete(id)
+  }) as typeof cancelAnimationFrame)
+
+  return {
+    get pendingFrames() {
+      return callbacks.size
+    },
+    step(timestamp: number) {
+      const pending = [...callbacks.values()]
+      callbacks.clear()
+      for (const callback of pending)
+        callback(timestamp)
+    },
+  }
+}
+
+const FAST_ATOMIC_TEST_OPTIONS: SmoothMarkdownStreamOptions = {
+  minCharsPerSecond: 1000,
+  maxCharsPerSecond: 1000,
+  maxCharsPerCommit: 1,
+  maxCommitFps: 60,
+  startDelayMs: 0,
+}
+
 describe('smoothMarkdownStreamController', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -358,6 +392,212 @@ describe('smoothMarkdownStreamController', () => {
       pendingChars: 0,
       caughtUp: true,
       final: false,
+    })
+  })
+
+  describe('atomic opening fence lines', () => {
+    it('reveals the marker, info string, and newline in one commit', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+      const visibleSnapshots: string[] = []
+      controller.subscribe(() => visibleSnapshots.push(controller.getSnapshot().visible))
+
+      controller.enqueue('```typescript\nbody')
+      expect(controller.getSnapshot().visible).toBe('')
+
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe('```typescript\n')
+      expect(visibleSnapshots).not.toContain('```')
+      expect(visibleSnapshots).not.toContain('```type')
+      controller.destroy()
+    })
+
+    it('keeps an info line blocked across chunks without an idle RAF loop', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('```')
+      expect(controller.getSnapshot().visible).toBe('')
+      expect(raf.pendingFrames).toBe(0)
+
+      controller.enqueue('typescript')
+      expect(controller.getSnapshot().visible).toBe('')
+      expect(raf.pendingFrames).toBe(0)
+
+      controller.enqueue('\nbody')
+      expect(raf.pendingFrames).toBe(1)
+      raf.step(performance.now() + 40)
+      expect(controller.getSnapshot().visible).toBe('```typescript\n')
+      controller.destroy()
+    })
+
+    it.each([
+      ['backticks', '```ts\n'],
+      ['long backticks', '`````ts\n'],
+      ['tildes', '~~~ts\n'],
+      ['long tildes', '~~~~~ts\n'],
+      ['marker only', '```\n'],
+    ])('supports %s opening fences', (_label, openingLine) => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue(`${openingLine}x`)
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe(openingLine)
+      controller.destroy()
+    })
+
+    it.each([0, 1, 2, 3])('supports a %i-space opening indent', (indent) => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+      const openingLine = `${' '.repeat(indent)}\`\`\`ts\n`
+
+      controller.enqueue(`${openingLine}x`)
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe(openingLine)
+      controller.destroy()
+    })
+
+    it('does not block mid-line backticks', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('hello ```typescript')
+      expect(raf.pendingFrames).toBe(1)
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe('h')
+      controller.destroy()
+    })
+
+    it('does not treat a four-space-indented marker as a fence', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('    ```typescript')
+      expect(raf.pendingFrames).toBe(1)
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe(' ')
+      controller.destroy()
+    })
+
+    it('holds a possible indent until the rest of the opening line arrives', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('  ')
+      expect(controller.getSnapshot().visible).toBe('')
+      expect(raf.pendingFrames).toBe(0)
+
+      controller.enqueue('```ts\nbody')
+      raf.step(performance.now() + 40)
+      expect(controller.getSnapshot().visible).toBe('  ```ts\n')
+      controller.destroy()
+    })
+
+    it('keeps an invalid backtick info string on the smooth body path', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('```foo`bar\ntext')
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe('`')
+      controller.destroy()
+    })
+
+    it('holds a marker split one backtick at a time', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('`')
+      controller.enqueue('`')
+      controller.enqueue('`')
+      expect(controller.getSnapshot().visible).toBe('')
+      expect(raf.pendingFrames).toBe(0)
+
+      controller.enqueue('ts\nbody')
+      raf.step(performance.now() + 40)
+      expect(controller.getSnapshot().visible).toBe('```ts\n')
+      controller.destroy()
+    })
+
+    it('first reveals a full opening line when the source is enqueued once', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+      const source = 'intro\n```typescript\nconst answer = 42\n```'
+      const snapshots: string[] = []
+      controller.subscribe(() => snapshots.push(controller.getSnapshot().visible))
+
+      controller.enqueue(source)
+      const baseline = performance.now()
+      for (let step = 1; step <= 20; step++)
+        raf.step(baseline + step * 40)
+
+      const firstFenceSnapshot = snapshots.find(snapshot => snapshot.includes('```'))
+      expect(firstFenceSnapshot).toContain('```typescript\n')
+      controller.destroy()
+    })
+
+    it('releases an unterminated trailing opening line when finish is called', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('```typescript')
+      expect(controller.getSnapshot().visible).toBe('')
+      controller.finish()
+      expect(raf.pendingFrames).toBe(1)
+      raf.step(performance.now() + 40)
+
+      expect(controller.getSnapshot().visible).toBe('```typescript')
+      expect(controller.getSnapshot().final).toBe(true)
+      controller.destroy()
+    })
+
+    it('continues revealing the body smoothly after the atomic opening line', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('```ts\nabc')
+      const baseline = performance.now()
+      raf.step(baseline + 40)
+      expect(controller.getSnapshot().visible).toBe('```ts\n')
+
+      raf.step(baseline + 80)
+      expect(controller.getSnapshot().visible).toBe('```ts\na')
+      raf.step(baseline + 120)
+      expect(controller.getSnapshot().visible).toBe('```ts\nab')
+      controller.destroy()
+    })
+
+    it('reveals CRLF as part of the same atomic opening line', () => {
+      const raf = createRafHarness()
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.enqueue('```ts\r')
+      expect(controller.getSnapshot().visible).toBe('')
+      expect(raf.pendingFrames).toBe(0)
+
+      controller.enqueue('\nbody')
+      raf.step(performance.now() + 40)
+      expect(controller.getSnapshot().visible).toBe('```ts\r\n')
+      controller.destroy()
+    })
+
+    it('keeps reset-based append optimization fence-safe', () => {
+      const controller = createController(FAST_ATOMIC_TEST_OPTIONS)
+
+      controller.reset('```')
+      expect(controller.getSnapshot().visible).toBe('')
+      controller.reset('```type')
+      expect(controller.getSnapshot().visible).toBe('')
+      controller.reset('```typescript\nbody')
+      expect(controller.getSnapshot().visible).toBe('```typescript\nbody')
+      controller.destroy()
     })
   })
 })
