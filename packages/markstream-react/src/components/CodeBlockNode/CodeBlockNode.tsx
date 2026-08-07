@@ -276,7 +276,17 @@ function isTransparentColor(color: string) {
   const normalized = String(color ?? '').trim().toLowerCase()
   if (!normalized || normalized === 'transparent')
     return true
-  const channels = normalized.match(/rgba?\(([^)]+)\)/)?.[1]?.split(/[\s,/]+/).filter(Boolean)
+
+  // Hex with an explicit alpha channel: #RRGGBBAA / #RGBA.
+  const hex8 = normalized.match(/^#([0-9a-f]{8})$/)
+  if (hex8)
+    return Number.parseInt(hex8[1].slice(6), 16) === 0
+  const hex4 = normalized.match(/^#([0-9a-f]{4})$/)
+  if (hex4)
+    return Number.parseInt(hex4[1][3] + hex4[1][3], 16) === 0
+
+  // rgb()/rgba()/hsl()/hsla() with an explicit alpha channel (last value == 0).
+  const channels = normalized.match(/^(?:rgba?|hsla?)\(([^)]+)\)/)?.[1]?.split(/[\s,/]+/).filter(Boolean)
   return channels?.length === 4 && Number(channels[3]) === 0
 }
 

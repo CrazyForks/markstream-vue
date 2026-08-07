@@ -11,7 +11,7 @@
   };
   let {
     node,
-    showLineNumbers = true,
+    showLineNumbers = false,
     enhanceable = true,
     class: className = undefined,
     style = undefined,

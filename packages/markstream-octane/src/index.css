@@ -1131,8 +1131,8 @@
 }
 
 :where(.markstream-octane) .code-block-container.is-dark {
-  --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: hsl(0 0% 93%);
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: rgb(55 65 81 / 0.3);
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
   --markstream-diff-frame-border: rgb(82 82 91 / 0.56);

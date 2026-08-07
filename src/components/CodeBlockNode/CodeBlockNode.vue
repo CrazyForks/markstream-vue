@@ -4723,8 +4723,8 @@ onUnmounted(() => {
 
 <style scoped>
 .code-block-container {
-  --markstream-code-fallback-bg: #fff;
-  --markstream-code-fallback-fg: hsl(0 0% 10%);
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: var(--code-border);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
   --markstream-code-fallback-selection-bg: var(--code-selection-bg);
@@ -4779,8 +4779,8 @@ onUnmounted(() => {
 }
 
 .code-block-container.is-dark {
-  --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: hsl(0 0% 93%);
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: var(--code-selection-bg);
   --markstream-diff-frame-border: var(--code-border);

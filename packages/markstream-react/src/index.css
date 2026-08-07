@@ -1157,7 +1157,7 @@
   content-visibility: visible;
   contain-intrinsic-size: auto;
   container-type: inline-size;
-  --markstream-code-fallback-bg: #fff;
+  --markstream-code-fallback-bg: var(--code-bg);
   --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: rgba(0, 0, 0, 0.06);
@@ -1224,8 +1224,8 @@
 }
 
 :where(.markstream-react) .code-block-container.is-dark {
-  --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: hsl(0 0% 93%);
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: var(--code-border);
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
   --markstream-diff-frame-border: rgb(82 82 91 / 0.56);

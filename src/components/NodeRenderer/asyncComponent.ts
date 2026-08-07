@@ -356,7 +356,7 @@ const CodeBlockNodeInnerAsync = defineAsyncComponent({
     }
     catch (e) {
       console.warn(
-        '[markstream-vue] Optional peer dependency stream-diffs is missing. Falling back to preformatted code rendering. To enable enhanced code block features, please install "stream-diffs".',
+        '[markstream-vue] Failed to load the enhanced CodeBlockNode chunk; falling back to preformatted code rendering. Enhanced code blocks require the optional "stream-diffs" peer (or "stream-monaco" as a fallback).',
         e,
       )
       return PreCodeNode

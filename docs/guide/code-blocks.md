@@ -24,6 +24,10 @@ npm i stream-diffs
 - `CodeBlockShell` owns the title and action bar. The inner `data-diffs-header` is disabled so File surfaces do not render a second header.
 - No worker plugin or extra CSS import is required for this integration. See also: [/guide/monaco](/guide/monaco) for runtime and preload details.
 
+### Theming the fallback surface
+
+The stable `PreCodeNode` fallback (shown while content streams, and used when no enhanced runtime is installed) is themed through the shared `--code-*` tokens — `--code-bg`, `--code-fg`, `--code-border`, `--code-header-bg`, `--code-action-fg`, `--code-line-number`, etc. These tokens are the single theming channel across all framework adapters (vue / vue2 / react / svelte / angular / octane): override them to restyle the fallback surface. The enhanced editor surface is painted by its own runtime theme and is not affected by `--code-*` overrides.
+
 ## Shiki mode (MarkdownCodeBlockNode)
 
 - Install:
