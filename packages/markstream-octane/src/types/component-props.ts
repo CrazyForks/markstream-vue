@@ -111,6 +111,7 @@ export interface CodeBlockNodeProps extends CommonCodeBlockProps {
   showPreviewButton?: boolean
   showCollapseButton?: boolean
   showFontSizeButtons?: boolean
+  showLineNumbers?: boolean
   showTooltips?: boolean
   htmlPreviewAllowScripts?: boolean
   htmlPreviewSandbox?: string

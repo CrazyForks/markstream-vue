@@ -117,6 +117,7 @@
     "test:perf:height-estimation-experiment": "node scripts/benchmark-height-estimation-experiment.mjs",
     "test:e2e:diff-folding": "node scripts/e2e-diff-folding.mjs",
     "test:e2e:codeblock-highlight-stability": "node scripts/e2e-codeblock-highlight-stability.mjs",
+    "test:e2e:line-number-handoff-playgrounds": "node scripts/e2e-line-number-handoff-playgrounds.mjs",
     "test:e2e:react-websocket-code-blocks": "pnpm run build:parser && pnpm --filter markstream-core build && node scripts/e2e-react-websocket-code-blocks.mjs",
     "test:e2e:height-estimation-experiment": "node scripts/e2e-height-estimation-experiment.mjs",
     "test:e2e:main-playground-performance": "node scripts/e2e-main-playground-performance.mjs",

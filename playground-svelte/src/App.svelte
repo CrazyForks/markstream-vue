@@ -64,18 +64,43 @@
     hideUnchangedRegions: diffHideUnchangedRegions,
   } as const
 
+  const LINE_NUMBER_HANDOFF_PATH = '/line-number-handoff-check'
+  const handoffMarkdown = [
+    '# Pre → Highlight Line Number Handoff',
+    '',
+    '```ts',
+    'export function chunk(input: string) {',
+    '  const lines = input.split(/\\r?\\n/)',
+    '  return lines.map((line, index) => ({ index, value: line.trim(), block: 1 }))',
+    '}',
+    '',
+    'for (const item of chunk(\'alpha\\nbeta\\ngamma\')) {',
+    '  console.log(item.index, item.value)',
+    '}',
+    '',
+    'function done() {',
+    '  return true',
+    '}',
+    'done()',
+    '```',
+  ].join('\n')
+  const handoffCodeBlockProps = { showLineNumbers: true }
+
+  let currentPath = normalizePath(window.location.pathname)
+
   setKaTeXWorker(new KatexWorker())
   setMermaidWorker(new MermaidWorker())
-  if (typeof window !== 'undefined')
+  if (typeof window !== 'undefined' && currentPath !== LINE_NUMBER_HANDOFF_PATH)
     void preloadCodeBlockRuntime()
   setCustomComponents(PLAYGROUND_CUSTOM_ID, {
     thinking: ThinkingNode,
   })
 
-  let currentPath = normalizePath(window.location.pathname)
   let content = ''
-  let isDark = window.localStorage.getItem('vueuse-color-scheme') === 'dark'
-    || (window.localStorage.getItem('vueuse-color-scheme') == null && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+  let isDark = currentPath === LINE_NUMBER_HANDOFF_PATH
+    ? new URLSearchParams(window.location.search).get('theme') === 'dark'
+    : window.localStorage.getItem('vueuse-color-scheme') === 'dark'
+      || (window.localStorage.getItem('vueuse-color-scheme') == null && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
   let selectedTheme = window.localStorage.getItem('vmr-settings-selected-theme') || 'vitesse-dark'
   let chunkSizeMin = Number(window.localStorage.getItem('vmr-settings-stream-chunk-size-min') || 2)
   let chunkSizeMax = Number(window.localStorage.getItem('vmr-settings-stream-chunk-size-max') || 7)
@@ -134,7 +159,7 @@
   $: currentTitle = currentPath === '/test' ? 'markstream-svelte test lab' : 'markstream-svelte'
   $: renderModeLabel = renderMode === 'markdown' ? 'MarkdownCodeBlock' : renderMode === 'pre' ? 'PreCodeNode' : 'Monaco'
   $: activeRenderModeLabel = currentPath === '/test' ? renderModeLabel : 'Monaco'
-  $: if (currentPath !== '/test' && content.length !== previousContentLength) {
+  $: if (currentPath !== '/test' && currentPath !== LINE_NUMBER_HANDOFF_PATH && content.length !== previousContentLength) {
     previousContentLength = content.length
     const shouldStickToBottom = homepagePinnedToBottom || isHomepageAtBottom()
     homepagePinnedToBottom = shouldStickToBottom
@@ -148,7 +173,7 @@
     window.addEventListener('popstate', syncPath)
     window.addEventListener('scroll', updateHomepagePinnedState, { passive: true })
     window.addEventListener('wheel', handleHomepageWheel, { passive: true })
-    if (currentPath !== '/test') {
+    if (currentPath !== '/test' && currentPath !== LINE_NUMBER_HANDOFF_PATH) {
       startStream()
       tick().then(observeHomepageMessages)
     }
@@ -173,16 +198,15 @@
 
   function syncPath() {
     currentPath = normalizePath(window.location.pathname)
-    if (currentPath === '/test') {
+    if (currentPath === '/test' || currentPath === LINE_NUMBER_HANDOFF_PATH) {
       stopStream()
       disconnectHomepageObservers()
       cancelHomepageAutoScroll()
+      return
     }
-    else {
-      homepagePinnedToBottom = true
-      tick().then(observeHomepageMessages)
-    }
-    if (currentPath !== '/test' && !isStreaming)
+    homepagePinnedToBottom = true
+    tick().then(observeHomepageMessages)
+    if (!isStreaming)
       startStream()
   }
 
@@ -476,6 +500,40 @@
   }
 </script>
 
+{#if currentPath === LINE_NUMBER_HANDOFF_PATH}
+  <div class:dark={isDark} class="handoff-check">
+    <header>
+      <h1>Pre → Highlight Line Number Handoff</h1>
+      <button type="button" onclick={() => (isDark = !isDark)}>Toggle dark</button>
+    </header>
+
+    <h2>1) Highlight (default)</h2>
+    <section class="handoff-column" data-handoff-case="enhanced">
+      <MarkdownRender
+        content={handoffMarkdown}
+        final={true}
+        fade={false}
+        {isDark}
+        codeBlockDarkTheme="vitesse-dark"
+        codeBlockLightTheme="vitesse-light"
+      />
+    </section>
+
+    <h2>2) Pre fallback (render-code-blocks-as-pre)</h2>
+    <section class="handoff-column" data-handoff-case="pre">
+      <MarkdownRender
+        content={handoffMarkdown}
+        final={true}
+        fade={false}
+        {isDark}
+        renderCodeBlocksAsPre={true}
+        codeBlockProps={handoffCodeBlockProps}
+        codeBlockDarkTheme="vitesse-dark"
+        codeBlockLightTheme="vitesse-light"
+      />
+    </section>
+  </div>
+{:else}
 <div class:dark={isDark} class="playground-root playground-shell">
   <div class="playground-bg">
     <div class="playground-bg__orb playground-bg__orb--1"></div>
@@ -735,3 +793,29 @@
     </div>
   {/if}
 </div>
+{/if}
+
+<style>
+  .handoff-check {
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 24px;
+    background: #f5f7fb;
+    color: #0f172a;
+    font-family: system-ui, sans-serif;
+  }
+
+  .handoff-check.dark {
+    background: #0b1220;
+    color: #e2e8f0;
+  }
+
+  .handoff-column {
+    max-width: 860px;
+    margin-bottom: 32px;
+  }
+
+  .handoff-check h2 {
+    margin-top: 20px;
+  }
+</style>

@@ -62,6 +62,15 @@ async function waitForCallCount(fn: ReturnType<typeof vi.fn>, expected: number, 
   }
 }
 
+async function waitForEditorVisible(getEditorHost: () => HTMLElement | null, timeout = 1000) {
+  const start = Date.now()
+  while (getEditorHost()?.style.visibility !== 'visible') {
+    if (Date.now() - start > timeout)
+      throw new Error('Timed out waiting for the editor handoff')
+    await flushReact()
+  }
+}
+
 function setElementRect(element: Element, rect: { top: number, bottom: number, height: number, width?: number }) {
   Object.defineProperty(element, 'getBoundingClientRect', {
     configurable: true,
@@ -291,7 +300,7 @@ describe('markstream-react codeBlockNode theme updates', () => {
       }))
     })
     await waitForCallCount(helpers.createDiffEditor, 1)
-    await flushReact()
+    await waitForEditorVisible(() => editorHost)
 
     expect(editorHost?.style.height).toBe('500px')
 

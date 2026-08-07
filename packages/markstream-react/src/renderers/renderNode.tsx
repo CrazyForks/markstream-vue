@@ -265,7 +265,14 @@ function renderCodeBlock(
     return renderCustomCodeBlockComponent(customCodeBlock, node, key, ctx)
 
   if (ctx.renderCodeBlocksAsPre || language === 'mermaid') {
-    return <PreCodeNode key={key} node={node} />
+    return (
+      <PreCodeNode
+        key={key}
+        node={node}
+        monacoOptions={ctx.codeBlockThemes?.monacoOptions}
+        showLineNumbers={ctx.codeBlockProps?.showLineNumbers === true}
+      />
+    )
   }
 
   return (

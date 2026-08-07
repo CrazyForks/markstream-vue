@@ -19,7 +19,8 @@ pnpm add markstream-angular @angular/core @angular/common
 
 Optional peer dependencies:
 
-- `stream-monaco` for Monaco-powered code blocks
+- `stream-diffs` (recommended) for enhanced / streaming code blocks
+- `stream-monaco` for Monaco-powered code blocks (automatic fallback when `stream-diffs` is absent)
 - `mermaid` for Mermaid diagrams
 - `katex` for math rendering
 - `@terrastruct/d2` for D2 diagrams
@@ -30,8 +31,54 @@ Install only the peers your output actually needs. Plain Markdown does not requi
 Example:
 
 ```bash
-pnpm add stream-monaco mermaid katex @terrastruct/d2 @antv/infographic
+pnpm add stream-diffs mermaid katex @terrastruct/d2 @antv/infographic
 ```
+
+## Enhanced Code Blocks
+
+Code blocks use a dual-runtime loader: `stream-diffs` is preferred, `stream-monaco` is the automatic fallback, and a plain `<pre>` is rendered when neither is installed. Inside `MarkstreamAngularComponent`, code blocks resolve to this runtime automatically; you can also mount the standalone `markstream-angular-code-block-node` component directly:
+
+```ts
+import type { CodeBlockMonacoOptions } from 'markstream-angular'
+import { Component, signal } from '@angular/core'
+import { CodeBlockNode } from 'markstream-angular'
+
+@Component({
+  selector: 'app-code-block',
+  standalone: true,
+  imports: [CodeBlockNode],
+  template: `
+    <markstream-angular-code-block-node [node]="node" [props]="props" />
+  `,
+})
+class CodeBlockComponent {
+  node = {
+    type: 'code_block',
+    language: 'ts',
+    code: 'const answer = 42',
+    raw: 'const answer = 42',
+  }
+
+  // fontSize / lineHeight / tabSize also drive the streaming <pre> fallback so
+  // the enhanced surface swaps in without a visual jump.
+  props = {
+    isDark: true,
+    showLineNumbers: true,
+    monacoOptions: {
+      fontSize: 14,
+      lineHeight: 21,
+      tabSize: 4,
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+      wordWrap: 'off',
+      theme: 'vitesse-dark',
+      renderSideBySide: true,
+      MAX_HEIGHT: 640,
+    } as CodeBlockMonacoOptions,
+  }
+}
+```
+
+Component options go through the `props` input: `isDark`, `showLineNumbers`, `monacoOptions`, `darkTheme` / `lightTheme`, `loading`, `stream`. `monacoOptions` also covers diff blocks (`renderSideBySide`, `diffHunkActionsOnHover`, `onDiffHunkAction`).
 
 ## Quick Start
 

@@ -10,6 +10,8 @@ pnpm add stream-diffs
 
 不需要 worker plugin，也不需要额外导入包专用 CSS。
 
+`stream-monaco` 仍然作为自动回退受支持：如果未安装 `stream-diffs`，loader 会尝试 `stream-monaco`（vue2 包走 `stream-monaco/legacy` 入口），再退而渲染普通 `<pre>`。你可以保留现有的 `stream-monaco` 安装，不需要同时安装两个 runtime。
+
 ## Runtime 职责边界
 
 ```text

@@ -18,6 +18,13 @@ interface GraphemeSegmenter {
   segment: (input: string) => Iterable<GraphemeSegment>
 }
 
+interface AtomicRevealRange {
+  start: number
+  end: number
+}
+
+type FenceLineState = 'candidate' | 'normal' | 'opening' | 'closing'
+
 function toPositiveFiniteNumber(value: unknown, fallback: number, min = 1) {
   const normalized = Number(value)
   return Number.isFinite(normalized)
@@ -57,6 +64,21 @@ class SmoothMarkdownStreamControllerImpl {
   private currentCps: number
   private hasStarted = false
   private destroyed = false
+
+  // Fence scanning is append-only and each source code unit is visited once.
+  // Opening fence lines are withheld until their line ending arrives, then the
+  // marker, info string, and newline are committed as one atomic unit.
+  private fenceScanOffset = 0
+  private fenceLineStart = 0
+  private fenceLineState: FenceLineState = 'candidate'
+  private fenceIndent = 0
+  private fenceMarker: '`' | '~' | '' = ''
+  private fenceMarkerLength = 0
+  private activeFenceMarker: '`' | '~' | '' = ''
+  private activeFenceLength = 0
+  private blockedRevealEnd = 0
+  private readonly atomicRevealRanges: AtomicRevealRange[] = []
+  private atomicRevealRangeIndex = 0
 
   constructor(options: SmoothMarkdownStreamOptions = {}, notify?: SmoothStreamNotify) {
     const {
@@ -131,9 +153,11 @@ class SmoothMarkdownStreamControllerImpl {
 
     const hadSource = this.source.length > 0
     const wasIdle = this.pendingChars <= 0
+    const wasRevealBlocked = this.isRevealBlocked()
     this.source += chunk
+    this.scanAppendedSource()
 
-    if (wasIdle) {
+    if (wasIdle || (wasRevealBlocked && !this.isRevealBlocked())) {
       const t = now()
       // Only apply startDelay for the very first batch of a new stream.
       // If the stream already had content and wasn't finished, skip the delay
@@ -155,9 +179,11 @@ class SmoothMarkdownStreamControllerImpl {
       return
 
     this.done = true
+    this.releaseTrailingFenceCandidate()
 
     if (finishOptions.flush ?? this.flushOnFinish) {
       this.visible = this.source
+      this.discardConsumedAtomicRanges()
       this.charBudget = 0
       this.currentCps = this.minCharsPerSecond
       this.cancelLoop()
@@ -173,7 +199,9 @@ class SmoothMarkdownStreamControllerImpl {
     if (this.destroyed)
       return
 
+    this.releaseTrailingFenceCandidate()
     this.visible = this.source
+    this.discardConsumedAtomicRanges()
     this.charBudget = 0
     this.currentCps = this.minCharsPerSecond
     this.cancelLoop()
@@ -186,8 +214,17 @@ class SmoothMarkdownStreamControllerImpl {
 
     this.cancelLoop()
 
-    this.source = initialMarkdown
-    this.visible = initialMarkdown
+    if (initialMarkdown.startsWith(this.source)) {
+      this.source = initialMarkdown
+      this.scanAppendedSource()
+    }
+    else {
+      this.resetFenceScanner()
+      this.source = initialMarkdown
+      this.scanAppendedSource()
+    }
+    this.visible = this.source.slice(0, this.getRevealableEnd())
+    this.discardConsumedAtomicRanges()
     this.done = false
     this.paused = false
     this.hasStarted = false
@@ -240,8 +277,216 @@ class SmoothMarkdownStreamControllerImpl {
     this.destroy()
   }
 
+  private resetFenceScanner(): void {
+    this.fenceScanOffset = 0
+    this.fenceLineStart = 0
+    this.fenceLineState = 'candidate'
+    this.fenceIndent = 0
+    this.fenceMarker = ''
+    this.fenceMarkerLength = 0
+    this.activeFenceMarker = ''
+    this.activeFenceLength = 0
+    this.blockedRevealEnd = 0
+    this.atomicRevealRanges.length = 0
+    this.atomicRevealRangeIndex = 0
+  }
+
+  private scanAppendedSource(terminal = false): void {
+    while (this.fenceScanOffset < this.source.length) {
+      const character = this.source[this.fenceScanOffset]
+
+      if (character === '\r') {
+        if (this.fenceScanOffset + 1 >= this.source.length && !terminal)
+          break
+
+        if (this.source[this.fenceScanOffset + 1] === '\n') {
+          const lineEnd = this.fenceScanOffset + 2
+          this.completeFenceLine(lineEnd)
+          this.fenceScanOffset = lineEnd
+          continue
+        }
+      }
+
+      if (character === '\n') {
+        const lineEnd = this.fenceScanOffset + 1
+        this.completeFenceLine(lineEnd)
+        this.fenceScanOffset = lineEnd
+        continue
+      }
+
+      this.consumeFenceCharacter(character)
+      this.fenceScanOffset++
+    }
+
+    this.updateFenceRevealBlock()
+  }
+
+  private consumeFenceCharacter(character: string): void {
+    if (this.fenceLineState === 'normal')
+      return
+
+    if (this.fenceLineState === 'opening') {
+      // CommonMark forbids backticks in the info string of a backtick fence.
+      // Tilde fence info strings do not have this restriction.
+      if (this.fenceMarker === '`' && character === '`')
+        this.fenceLineState = 'normal'
+      return
+    }
+
+    if (this.fenceLineState === 'closing') {
+      if (character !== ' ' && character !== '\t')
+        this.fenceLineState = 'normal'
+      return
+    }
+
+    if (!this.fenceMarker) {
+      if (character === ' ' && this.fenceIndent < 3) {
+        this.fenceIndent++
+        return
+      }
+
+      if (character === '`' || character === '~') {
+        this.fenceMarker = character
+        this.fenceMarkerLength = 1
+        return
+      }
+
+      this.fenceLineState = 'normal'
+      return
+    }
+
+    if (character === this.fenceMarker) {
+      this.fenceMarkerLength++
+      return
+    }
+
+    if (this.activeFenceMarker) {
+      const isClosingMarker = this.fenceMarker === this.activeFenceMarker
+        && this.fenceMarkerLength >= this.activeFenceLength
+      this.fenceLineState = isClosingMarker && (character === ' ' || character === '\t')
+        ? 'closing'
+        : 'normal'
+      return
+    }
+
+    this.fenceLineState = this.fenceMarkerLength >= 3 ? 'opening' : 'normal'
+  }
+
+  private completeFenceLine(lineEnd: number): void {
+    const markerOnlyLine = this.fenceLineState === 'candidate' && this.fenceMarkerLength >= 3
+
+    if (!this.activeFenceMarker && (this.fenceLineState === 'opening' || markerOnlyLine)) {
+      this.atomicRevealRanges.push({
+        start: this.fenceLineStart,
+        end: lineEnd,
+      })
+      this.activeFenceMarker = this.fenceMarker
+      this.activeFenceLength = this.fenceMarkerLength
+    }
+    else if (this.activeFenceMarker) {
+      const closesActiveFence = this.fenceMarker === this.activeFenceMarker
+        && this.fenceMarkerLength >= this.activeFenceLength
+        && (this.fenceLineState === 'closing' || markerOnlyLine)
+      if (closesActiveFence) {
+        this.activeFenceMarker = ''
+        this.activeFenceLength = 0
+      }
+    }
+
+    this.fenceLineStart = lineEnd
+    this.fenceLineState = 'candidate'
+    this.fenceIndent = 0
+    this.fenceMarker = ''
+    this.fenceMarkerLength = 0
+    this.blockedRevealEnd = 0
+  }
+
+  private updateFenceRevealBlock(): void {
+    const isOpeningCandidate = !this.activeFenceMarker
+      && (this.fenceLineState === 'opening'
+        || (this.fenceLineState === 'candidate' && (this.fenceIndent > 0 || this.fenceMarkerLength > 0)))
+
+    // Encode the blocked line start as start + 1 so zero remains the fast-path
+    // sentinel for "not blocked", including a fence at source offset zero.
+    this.blockedRevealEnd = isOpeningCandidate ? this.fenceLineStart + 1 : 0
+  }
+
+  private releaseTrailingFenceCandidate(): void {
+    this.scanAppendedSource(true)
+    if (!this.blockedRevealEnd)
+      return
+
+    const isUnterminatedOpeningFence = this.fenceLineState === 'opening'
+      || (this.fenceLineState === 'candidate' && this.fenceMarkerLength >= 3)
+    if (isUnterminatedOpeningFence && this.source.length > this.fenceLineStart) {
+      this.atomicRevealRanges.push({
+        start: this.fenceLineStart,
+        end: this.source.length,
+      })
+    }
+
+    // finish()/flush() are terminal fallbacks. A trailing candidate may not be
+    // parser-complete, but it must be released so final can become true.
+    this.fenceLineState = 'normal'
+    this.blockedRevealEnd = 0
+  }
+
+  private isRevealBlocked(): boolean {
+    return this.blockedRevealEnd !== 0
+  }
+
+  private getRevealableEnd(): number {
+    return this.blockedRevealEnd
+      ? Math.min(this.source.length, this.blockedRevealEnd - 1)
+      : this.source.length
+  }
+
+  private hasRevealableChars(): boolean {
+    return this.visible.length < this.getRevealableEnd()
+  }
+
+  private takeNextRevealSlice(desiredCount: number): GraphemeSlice {
+    this.discardConsumedAtomicRanges()
+    const revealableEnd = this.getRevealableEnd()
+    if (this.visible.length >= revealableEnd)
+      return { text: '', graphemeCount: 0 }
+
+    const atomicRange = this.atomicRevealRanges[this.atomicRevealRangeIndex]
+    if (atomicRange && this.visible.length >= atomicRange.start && this.visible.length < atomicRange.end) {
+      return takeGraphemes(
+        this.source,
+        this.visible.length,
+        atomicRange.end - this.visible.length,
+        this.segmenter,
+        Math.min(atomicRange.end, revealableEnd),
+      )
+    }
+
+    const sliceEnd = atomicRange && atomicRange.start > this.visible.length
+      ? Math.min(atomicRange.start, revealableEnd)
+      : revealableEnd
+    return takeGraphemes(this.source, this.visible.length, desiredCount, this.segmenter, sliceEnd)
+  }
+
+  private discardConsumedAtomicRanges(): void {
+    while (
+      this.atomicRevealRangeIndex < this.atomicRevealRanges.length
+      && this.atomicRevealRanges[this.atomicRevealRangeIndex].end <= this.visible.length
+    ) {
+      this.atomicRevealRangeIndex++
+    }
+
+    if (
+      this.atomicRevealRangeIndex >= 64
+      && this.atomicRevealRangeIndex * 2 >= this.atomicRevealRanges.length
+    ) {
+      this.atomicRevealRanges.splice(0, this.atomicRevealRangeIndex)
+      this.atomicRevealRangeIndex = 0
+    }
+  }
+
   private ensureLoop(): void {
-    if (this.destroyed || this.rafId || this.paused || this.pendingChars <= 0)
+    if (this.destroyed || this.rafId || this.paused || !this.hasRevealableChars())
       return
 
     if (typeof requestAnimationFrame !== 'function') {
@@ -261,7 +506,7 @@ class SmoothMarkdownStreamControllerImpl {
     if (this.paused)
       return
 
-    if (this.pendingChars <= 0) {
+    if (!this.hasRevealableChars()) {
       this.startedAt = 0
       this.lastTick = 0
       this.charBudget = 0
@@ -301,7 +546,7 @@ class SmoothMarkdownStreamControllerImpl {
     }
 
     const desiredCount = Math.min(Math.floor(this.charBudget), this.maxCharsPerCommit)
-    const nextSlice = takeGraphemes(this.source, this.visible.length, desiredCount, this.segmenter)
+    const nextSlice = this.takeNextRevealSlice(desiredCount)
 
     if (nextSlice.text) {
       this.visible += nextSlice.text
@@ -364,17 +609,25 @@ function createGraphemeSegmenter(): GraphemeSegmenter | null {
   return new SegmenterCtor(undefined, { granularity: 'grapheme' })
 }
 
-function takeGraphemes(input: string, start: number, count: number, segmenter: GraphemeSegmenter | null): GraphemeSlice {
-  if (start >= input.length || count <= 0)
+function takeGraphemes(
+  input: string,
+  start: number,
+  count: number,
+  segmenter: GraphemeSegmenter | null,
+  endLimit = input.length,
+): GraphemeSlice {
+  const normalizedEnd = Math.min(input.length, Math.max(start, endLimit))
+  if (start >= normalizedEnd || count <= 0)
     return { text: '', graphemeCount: 0 }
 
   if (!segmenter) {
     let end = start
     let used = 0
-    while (end < input.length && used < count) {
+    while (end < normalizedEnd && used < count) {
       const code = input.charCodeAt(end)
       const next = input.charCodeAt(end + 1)
-      end += code >= 0xD800 && code <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF ? 2 : 1
+      const codeUnitLength = code >= 0xD800 && code <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF ? 2 : 1
+      end = Math.min(normalizedEnd, end + codeUnitLength)
       used++
     }
     return {
@@ -383,7 +636,7 @@ function takeGraphemes(input: string, start: number, count: number, segmenter: G
     }
   }
 
-  const pendingLength = input.length - start
+  const pendingLength = normalizedEnd - start
   let windowLength = Math.min(pendingLength, Math.max(64, count * 2))
 
   while (true) {

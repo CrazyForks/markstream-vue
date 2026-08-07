@@ -10,6 +10,7 @@ import { computed, getCurrentInstance, inject, markRaw, nextTick, onBeforeUnmoun
 import AdmonitionNode from '../../components/AdmonitionNode'
 import BlockquoteNode from '../../components/BlockquoteNode'
 import CheckboxNode from '../../components/CheckboxNode'
+import CodeBlockNode from '../../components/CodeBlockNode'
 import DefinitionListNode from '../../components/DefinitionListNode'
 import EmojiNode from '../../components/EmojiNode'
 import EmphasisNode from '../../components/EmphasisNode'
@@ -1674,21 +1675,6 @@ onBeforeUnmount(() => {
   clearTypewriterCursorTimeout()
 })
 
-// 异步按需加载 CodeBlock 组件；失败时退回为 InlineCodeNode（内联代码渲染）
-async function CodeBlockNodeAsync() {
-  try {
-    const mod = await import('../../components/CodeBlockNode')
-    return (mod as any).default ?? mod
-  }
-  catch (e) {
-    console.warn(
-      '[markstream-vue2] Optional peer dependencies for CodeBlockNode are missing. Falling back to inline-code rendering (no Monaco). To enable full code block features, please install "stream-monaco".',
-      e,
-    )
-    return PreCodeNode
-  }
-}
-
 const MermaidBlockNodeLoading = {
   name: 'MermaidBlockNodeLoading',
   props: {
@@ -1840,12 +1826,12 @@ async function D2BlockNodeAsync() {
 }
 
 // 组件映射表
-const codeBlockComponent = computed(() => props.renderCodeBlocksAsPre ? PreCodeNode : CodeBlockNodeAsync)
+const codeBlockComponent = computed(() => props.renderCodeBlocksAsPre ? PreCodeNode : CodeBlockNode)
 const nodeComponents = {
   text: TextNode,
   paragraph: ParagraphNode,
   heading: HeadingNode,
-  code_block: CodeBlockNodeAsync,
+  code_block: CodeBlockNode,
   list: ListNode,
   list_item: ListItemNode,
   blockquote: BlockquoteNode,
@@ -1901,6 +1887,61 @@ const customCodeBlockBindings = computed(() => ({
   langs: props.langs,
   ...codeBlockExtraProps.value,
 }))
+
+function countCodeLines(value: unknown) {
+  const code = String(value ?? '').replace(/(?:\r\n|\n|\r)$/, '')
+  return code ? code.split(/\r\n|\n|\r/).length : 1
+}
+
+function estimateBuiltinCodeBlockHeight(node: ParsedNode) {
+  const raw = (props.codeBlockMonacoOptions || {}) as Record<string, any>
+  const fontSize = parsePositiveNumber(raw.fontSize) ?? 12
+  const lineHeight = parsePositiveNumber(raw.lineHeight) ?? Math.round(fontSize * 1.5)
+  const isDiff = Boolean((node as any).diff)
+  const diffInline = isDiff && raw.renderSideBySide === false
+  const lineCount = isDiff
+    ? (diffInline
+        ? countCodeLines((node as any).originalCode) + countCodeLines((node as any).updatedCode)
+        : Math.max(countCodeLines((node as any).originalCode), countCodeLines((node as any).updatedCode)))
+    : countCodeLines((node as any).code)
+  const defaultPadding = isDiff ? 0 : 8
+  const paddingTop = typeof raw.padding?.top === 'number' && Number.isFinite(raw.padding.top)
+    ? Math.max(0, raw.padding.top)
+    : defaultPadding
+  const paddingBottom = typeof raw.padding?.bottom === 'number' && Number.isFinite(raw.padding.bottom)
+    ? Math.max(0, raw.padding.bottom)
+    : defaultPadding
+  const maxHeight = parsePositiveNumber(raw.MAX_HEIGHT) ?? 500
+  const contentHeight = Math.max(1, Math.min(
+    maxHeight,
+    Math.round(lineCount * lineHeight + paddingTop + paddingBottom),
+  ))
+  const showHeader = builtinCodeBlockExtraProps.value.showHeader !== false
+  return {
+    estimatedContentHeightPx: contentHeight,
+    estimatedHeightPx: contentHeight + (showHeader ? 41 : 0) + 2,
+    estimatedDiffInline: diffInline,
+  }
+}
+
+function pickBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+const preCodeBlockBindings = computed(() => {
+  const source = (props.codeBlockProps || {}) as Record<string, unknown>
+  const bindings: Record<string, unknown> = {}
+
+  const showLineNumbers = pickBoolean(source.showLineNumbers)
+  if (showLineNumbers !== undefined)
+    bindings.showLineNumbers = showLineNumbers
+
+  const diffInline = pickBoolean(source.diffInline)
+  if (diffInline !== undefined)
+    bindings.diffInline = diffInline
+
+  return bindings
+})
 const mermaidBindings = computed(() => ({
   ...(props.mermaidProps || {}),
 }))
@@ -2254,6 +2295,9 @@ function getBindingsFor(node: ParsedNode, language?: string, component?: unknown
   if (node.type === 'code_block' && isCustomCodeBlockComponent(component))
     return customCodeBlockBindings.value
 
+  if (node.type === 'code_block' && props.renderCodeBlocksAsPre && component === PreCodeNode)
+    return preCodeBlockBindings.value
+
   if (lang === 'mermaid')
     return getMermaidBindingsFor(node)
 
@@ -2269,9 +2313,13 @@ function getBindingsFor(node: ParsedNode, language?: string, component?: unknown
   if (node.type === 'list')
     return listBindings.value
 
-  return node.type === 'code_block'
-    ? codeBlockBindings.value
-    : nonCodeBindings.value
+  if (node.type === 'code_block') {
+    return component === CodeBlockNode
+      ? { ...codeBlockBindings.value, ...estimateBuiltinCodeBlockHeight(node) }
+      : codeBlockBindings.value
+  }
+
+  return nonCodeBindings.value
 }
 
 function handleContainerClick(event: MouseEvent) {

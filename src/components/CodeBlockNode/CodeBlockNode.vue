@@ -2049,6 +2049,18 @@ function syncEditorCssVars() {
   // Target: write --vscode-* vars to the editor container (Monaco zone),
   // NOT to rootEl (Shell zone). Shell no longer reads these variables.
   const targetEl = editorEl
+  // Align the enhanced surface with the pre-fallback geometry. stream-diffs /
+  // pierre honor these CSS variables on the editor host (custom properties
+  // inherit across the pierre shadow boundary):
+  // - `--diffs-tab-size`: fallback defaults to 4, pierre defaults to 2.
+  // - `--diffs-gap-block`: only set when the consumer explicitly configures
+  //   padding — the default 8px gap already matches the fallback.
+  targetEl.style.setProperty('--diffs-tab-size', String(preFallbackTabSize.value))
+  const configuredPadding = props.monacoOptions?.padding
+  if (configuredPadding && typeof configuredPadding === 'object')
+    targetEl.style.setProperty('--diffs-gap-block', `${preFallbackVerticalPadding.value.top}px`)
+  else
+    targetEl.style.removeProperty('--diffs-gap-block')
   // Monaco usually applies theme variables on an element with class
   // 'monaco-editor' or on the editor root; try to read from either.
   const editorRoot = (editorEl.querySelector('.monaco-editor') || editorEl) as HTMLElement
@@ -3485,9 +3497,9 @@ const containerStyle = computed(() => {
       s.minHeight = `${reserved}px`
   }
   if (!isDiff.value) {
-    s.color = 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg))'
-    s.backgroundColor = 'var(--vscode-editor-background, var(--markstream-code-fallback-bg))'
-    s.borderColor = 'var(--markstream-code-border-color)'
+    s.color = 'var(--markstream-code-fallback-fg, var(--code-fg))'
+    s.backgroundColor = 'var(--markstream-code-fallback-bg, var(--code-bg))'
+    s.borderColor = 'var(--markstream-code-border-color, var(--code-border))'
   }
   return s
 })
@@ -5135,8 +5147,8 @@ pre.code-pre-fallback {
   width: 100%;
   padding: var(--markstream-code-padding-y, 8px) var(--markstream-code-padding-x, 12px);
   padding-left: var(--markstream-code-padding-left, 52px);
-  background: transparent;
-  color: var(--vscode-editor-foreground, inherit);
+  background: var(--markstream-code-fallback-bg, var(--code-bg, #fff));
+  color: var(--markstream-code-fallback-fg, var(--code-fg));
   backface-visibility: visible;
   transform: none;
   -webkit-font-smoothing: auto;

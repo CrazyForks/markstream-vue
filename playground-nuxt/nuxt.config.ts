@@ -43,7 +43,7 @@ export default defineNuxtConfig({
         'stream-markdown',
         'vue-i18n',
       ],
-      exclude: ['monaco-editor', 'stream-monaco', 'markstream-vue'],
+      exclude: ['stream-diffs', 'markstream-vue'],
     },
     worker: {
       format: 'es',

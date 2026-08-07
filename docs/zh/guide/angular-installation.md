@@ -37,16 +37,19 @@ import 'katex/dist/katex.min.css'
 
 | 功能 | 包 |
 | --- | --- |
-| Monaco 代码块 | `stream-monaco` |
+| 增强代码块（推荐） | `stream-diffs` |
+| Monaco 代码块（自动回退） | `stream-monaco` |
 | Mermaid 图表 | `mermaid` |
 | KaTeX 数学公式 | `katex` |
 | D2 图表 | `@terrastruct/d2` |
 | AntV infographic block | `@antv/infographic` |
 
+代码块通过双运行时 loader 解析：优先 `stream-diffs`（更小，不依赖 `monaco-editor`），未安装时自动回退 `stream-monaco`，两者都未安装则渲染普通 `<pre>`。安装其中一个即可，不需要同时装两个。
+
 一次性安装：
 
 ```bash
-pnpm add stream-monaco mermaid katex @terrastruct/d2 @antv/infographic
+pnpm add stream-diffs mermaid katex @terrastruct/d2 @antv/infographic
 ```
 
 ## 可选 Worker

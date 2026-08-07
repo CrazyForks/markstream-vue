@@ -530,4 +530,41 @@ describe('markstream-react heavy-node prop forwarding', () => {
     expect(serverHtml).not.toContain('<ul>')
     expect(serverHtml).toContain('<pre>')
   })
+
+  it('keeps client and server direct Pre typography aligned with Vue3 defaults', () => {
+    const node = {
+      type: 'code_block',
+      language: 'ts',
+      code: 'const value = 1\nconst next = 2',
+      raw: '```ts\nconst value = 1\nconst next = 2\n```',
+    }
+    const ctx: RenderContext = {
+      ...baseCtx,
+      renderCodeBlocksAsPre: true,
+      codeBlockProps: { showLineNumbers: true },
+      codeBlockThemes: {
+        monacoOptions: {
+          fontFamily: 'JetBrains Mono',
+          fontSize: 14,
+          lineHeight: 21,
+          padding: { top: 6, bottom: 10 },
+          tabSize: 2,
+        },
+      },
+    }
+
+    const clientHtml = renderToStaticMarkup(clientRenderNode(node as any, 'client-pre-typography', ctx) as any)
+    const serverHtml = renderToStaticMarkup(serverRenderNode(node as any, 'server-pre-typography', ctx) as any)
+
+    for (const html of [clientHtml, serverHtml]) {
+      expect(html).toContain('markstream-pre--line-numbers')
+      expect(html).toContain('font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, &quot;Liberation Mono&quot;, &quot;Courier New&quot;, monospace')
+      expect(html).toContain('font-size:16px')
+      expect(html).toContain('line-height:28px')
+      expect(html).toContain('padding-top:0px')
+      expect(html).toContain('padding-bottom:0px')
+      expect(html).toContain('tab-size:2')
+      expect(html).toContain('class="markstream-pre__line-numbers-text">1\n2</span>')
+    }
+  })
 })

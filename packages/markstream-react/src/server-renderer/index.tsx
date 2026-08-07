@@ -43,6 +43,7 @@ import {
   stripCustomHtmlWrapper,
   tokenAttrsToRecord,
 } from 'stream-markdown-parser'
+import { PreCodeNode as SharedPreCodeNode } from '../components/CodeBlockNode/PreCodeNode'
 import { clampInfographicPreviewHeight, estimateInfographicPreviewHeight, parsePositiveNumber as parsePositiveInfographicNumber } from '../components/InfographicBlockNode/height'
 import { clampMermaidPreviewHeight, estimateMermaidPreviewHeight, parsePositiveNumber as parsePositiveMermaidNumber } from '../components/MermaidBlockNode/height'
 import {
@@ -360,8 +361,16 @@ function renderCodeBlock(
   if (customCodeBlock)
     return renderCustomCodeBlockComponent(customCodeBlock, node, key, ctx)
 
-  if (ctx.renderCodeBlocksAsPre)
-    return <PreCodeNode key={key} node={node} />
+  if (ctx.renderCodeBlocksAsPre) {
+    return (
+      <PreCodeNode
+        key={key}
+        node={node}
+        monacoOptions={ctx.codeBlockThemes?.monacoOptions}
+        showLineNumbers={ctx.codeBlockProps?.showLineNumbers === true}
+      />
+    )
+  }
 
   return (
     <CodeBlockNode
@@ -930,22 +939,8 @@ export function ImageNode(rawProps: ImageNodeProps) {
   )
 }
 
-export function PreCodeNode({ node }: PreCodeNodeProps) {
-  const normalizedLanguage = normalizePreLanguage((node as any)?.language)
-  const languageClass = `language-${normalizedLanguage}`
-  const ariaLabel = normalizedLanguage ? `Code block: ${normalizedLanguage}` : 'Code block'
-
-  return (
-    <pre
-      className={languageClass}
-      aria-busy={(node as any)?.loading === true}
-      aria-label={ariaLabel}
-      data-language={normalizedLanguage}
-      tabIndex={0}
-    >
-      <code translate="no">{String((node as any)?.code ?? '')}</code>
-    </pre>
-  )
+export function PreCodeNode(props: PreCodeNodeProps) {
+  return <SharedPreCodeNode {...props} />
 }
 
 export function CodeBlockNode(props: CodeBlockNodeProps) {

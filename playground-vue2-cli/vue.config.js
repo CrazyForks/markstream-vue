@@ -289,6 +289,9 @@ module.exports = {
     },
   },
   chainWebpack: (config) => {
+    // Avoid eagerly fetching hundreds of split chunks before the handoff page's
+    // entry bundle can run. Async components still load their chunks on demand.
+    config.plugins.delete('prefetch')
     // Avoid linting generated bundles / linked workspace packages in this playground.
     config.module.rules.delete('eslint')
   },

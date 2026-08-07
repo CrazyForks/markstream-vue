@@ -24,6 +24,61 @@ npm i stream-diffs
 - `CodeBlockShell` 负责标题和操作栏，内部 `data-diffs-header` 会被关闭，File surface 不会再渲染第二行标题。
 - 这个集成不需要 worker plugin，也不需要额外 CSS import。运行时与预热说明见 [/zh/guide/monaco](/zh/guide/monaco)。
 
+### stream-monaco 回退（legacy）
+
+增强代码块 loader 优先 `stream-diffs`，再回退到 `stream-monaco`，最后才是普通 `<pre>`：
+
+```text
+已安装 stream-diffs   → stream-diffs File / FileDiff surface（推荐）
+已安装 stream-monaco  → legacy Monaco editor surface（自动回退）
+两者都未安装           → 普通 <pre><code> 渲染
+```
+
+你不需要同时安装两者。保留 `stream-monaco` 可以让现有 Monaco 配置无改动继续工作；当 `stream-diffs` 未安装时 loader 会自动解析它。这个双运行时 loader 在 vue、vue2、react、svelte、angular 五个包中行为一致。
+
+### 配置
+
+代码块选项通过 `CodeBlockMonacoOptions` 传入——出于兼容性保留了该名称，但值会转发给 `stream-diffs` 适配器。这些配置同时作用于 pre-fallback surface（字体、行高、tab 宽度、内边距），保证两个 surface 在 handoff 时对齐。
+
+在 `MarkdownRender` 上用 `code-block-monaco-options`，或在 `CodeBlockNode` 上用 `monaco-options`：
+
+```vue twoslash
+<script setup lang="ts">
+import type { CodeBlockMonacoOptions, CodeBlockNodeProps } from 'markstream-vue'
+import { CodeBlockNode } from 'markstream-vue'
+
+const node = {
+  type: 'code_block',
+  language: 'ts',
+  code: 'const answer = 42',
+  raw: 'const answer = 42',
+} satisfies CodeBlockNodeProps['node']
+
+// fontSize / lineHeight / tabSize 同时驱动流式 <pre> fallback，
+// 让 enhanced surface 切换时没有视觉跳动。
+const codeBlockMonacoOptions = {
+  fontSize: 14,
+  lineHeight: 21,
+  tabSize: 4,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  wordWrap: 'off',
+  theme: 'vitesse-dark',
+  renderSideBySide: true,
+  MAX_HEIGHT: 640,
+} satisfies CodeBlockMonacoOptions
+</script>
+
+<template>
+  <CodeBlockNode :node="node" :monaco-options="codeBlockMonacoOptions" />
+</template>
+```
+
+完整选项列表、diff 交互与可选预热见 [/zh/guide/monaco](/zh/guide/monaco)。
+
+### fallback surface 主题
+
+稳定的 `PreCodeNode` fallback（内容流式期间显示；未安装任何增强运行时也会使用它）通过统一的 `--code-*` token 设置主题——`--code-bg`、`--code-fg`、`--code-border`、`--code-header-bg`、`--code-action-fg`、`--code-line-number` 等。这些 token 是覆盖所有框架适配器（vue / vue2 / react / svelte / angular / octane）的唯一主题通道：覆盖它们即可重设 fallback surface 的样式。增强编辑器 surface 由各自的运行时主题绘制，不受 `--code-*` 覆盖影响。
+
 ## Shiki 模式（MarkdownCodeBlockNode）
 
 - 安装：
@@ -91,7 +146,7 @@ const node = {
 
 ## 回退
 
-若未安装上述任一可选包，渲染器会回退为简单的 `pre`/`code` 表现。
+若 `stream-diffs` 和 `stream-monaco` 均未安装，代码块 loader 返回 `null`，渲染器回退为简单的 `pre`/`code` 表现。回退层仍然显示行号并遵循 `--code-*` 主题 token。
 
 ## 参考链接
 

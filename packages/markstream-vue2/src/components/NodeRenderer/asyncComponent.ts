@@ -2,6 +2,8 @@ import { h } from 'vue-demi'
 import { getKatex } from '../MathInlineNode/katex'
 import TextNode from '../TextNode'
 
+export { default as CodeBlockNodeLoading } from './CodeBlockNodeLoading.vue'
+
 function createMathFallbackNode(wrapper: (content: string) => string) {
   return (props: any) => {
     return h(TextNode, {

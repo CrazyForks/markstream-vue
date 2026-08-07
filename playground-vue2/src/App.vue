@@ -1,6 +1,7 @@
 <script>
 import MarkdownRender, { setCustomComponents } from 'markstream-vue2'
 import { streamContent } from '../../playground/src/const/markdown'
+import LineNumberHandoffCheck from './components/LineNumberHandoffCheck.vue'
 import TestLab from './components/TestLab.vue'
 import ThinkingNode from './components/ThinkingNode.vue'
 
@@ -10,6 +11,7 @@ setCustomComponents('vue2-demo', { thinking: ThinkingNode })
 export default {
   name: 'Vue2Playground',
   components: {
+    LineNumberHandoffCheck,
     MarkdownRender,
     TestLab,
   },
@@ -26,6 +28,12 @@ export default {
   computed: {
     isTestPage() {
       return this.normalizePath(this.currentPath) === '/test'
+    },
+    isLineNumberHandoffCheck() {
+      return this.normalizePath(this.currentPath) === '/line-number-handoff-check'
+    },
+    isStandaloneCheckPage() {
+      return this.isTestPage || this.isLineNumberHandoffCheck
     },
     totalLength() {
       return markdownSource.length
@@ -45,14 +53,14 @@ export default {
   },
   watch: {
     delay() {
-      if (this.running && !this.isTestPage)
+      if (this.running && !this.isStandaloneCheckPage)
         this.restartStream()
     },
   },
   mounted() {
     this.syncPath()
     window.addEventListener('popstate', this.handlePopState)
-    if (!this.isTestPage)
+    if (!this.isStandaloneCheckPage)
       this.startStream()
   },
   beforeUnmount() {
@@ -73,7 +81,7 @@ export default {
     },
     handlePopState() {
       this.syncPath()
-      if (this.isTestPage)
+      if (this.isStandaloneCheckPage)
         this.stopStream()
       else if (!this.content.length)
         this.startStream()
@@ -87,7 +95,7 @@ export default {
       if (nextPath !== this.normalizePath(window.location.pathname))
         window.history.pushState({}, '', nextPath)
       this.currentPath = nextPath
-      if (this.isTestPage)
+      if (this.isStandaloneCheckPage)
         this.stopStream()
       else if (!this.content.length)
         this.startStream()
@@ -143,6 +151,7 @@ export default {
 
 <template>
   <TestLab v-if="isTestPage" @navigate-home="goHome" />
+  <LineNumberHandoffCheck v-else-if="isLineNumberHandoffCheck" />
 
   <div v-else class="page">
     <header class="header">

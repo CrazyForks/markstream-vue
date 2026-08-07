@@ -2,6 +2,7 @@
 /* global __MARKSTREAM_VUE2_CLI_DEMO_MD__ */
 
 import MarkdownRender, { setCustomComponents } from 'markstream-vue2'
+import LineNumberHandoffCheck from './components/LineNumberHandoffCheck.vue'
 import ThinkingNode from './components/ThinkingNode.vue'
 
 const markdownSource = typeof __MARKSTREAM_VUE2_CLI_DEMO_MD__ === 'string'
@@ -18,6 +19,7 @@ setCustomComponents('vue2-demo', { thinking: ThinkingNode })
 export default {
   name: 'Vue2CliPlayground',
   components: {
+    LineNumberHandoffCheck,
     MarkdownRender,
   },
   data() {
@@ -29,9 +31,13 @@ export default {
       running: true,
       customHtmlTags,
       codeBlockProps,
+      currentPath: typeof window !== 'undefined' ? window.location.pathname : '/',
     }
   },
   computed: {
+    isLineNumberHandoffCheck() {
+      return this.currentPath.replace(/\/+$/, '') === '/line-number-handoff-check'
+    },
     totalLength() {
       return markdownSource.length
     },
@@ -55,7 +61,7 @@ export default {
     },
   },
   mounted() {
-    if (!probeMode)
+    if (!probeMode && !this.isLineNumberHandoffCheck)
       this.startStream()
   },
   beforeUnmount() {
@@ -141,7 +147,9 @@ export default {
 </script>
 
 <template>
-  <div class="page">
+  <LineNumberHandoffCheck v-if="isLineNumberHandoffCheck" />
+
+  <div v-else class="page">
     <header class="header">
       <div class="title">
         markstream-vue2 playground

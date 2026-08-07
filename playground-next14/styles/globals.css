@@ -82,7 +82,44 @@ a {
   background: rgba(32, 26, 23, 0.12);
 }
 
+.handoff-check {
+  min-height: 100vh;
+  padding: 24px;
+  background: #f5f7fb;
+  font-family: system-ui, sans-serif;
+}
+
+.handoff-check.dark {
+  color: #e2e8f0;
+  background: #0b1220;
+}
+
+.handoff-check header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.handoff-col {
+  min-width: 0;
+}
+
+.handoff-col h2 {
+  margin-top: 20px;
+}
+
 @media (max-width: 720px) {
+  .handoff-grid {
+    grid-template-columns: 1fr;
+  }
+
   .home-shell,
   .ssr-lab-shell {
     width: min(100vw - 20px, 1200px);

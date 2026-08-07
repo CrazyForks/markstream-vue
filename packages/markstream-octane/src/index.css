@@ -22,6 +22,9 @@
   --secondary: 210 40% 96%;
   --muted: 210 40% 96%;
   --muted-foreground: 215.4 16.3% 46.9%;
+  /* Unified default code surface; explicit editor themes may override it. */
+  --code-bg: #fff;
+  --code-fg: hsl(0 0% 10%);
 }
 
 
@@ -34,6 +37,8 @@
   --secondary: 217.2 32.6% 17.5%;
   --muted: 217.2 32.6% 17.5%;
   --muted-foreground: 215 20.2% 65.1%;
+  --code-bg: #111827;
+  --code-fg: hsl(0 0% 93%);
 }
 
 :where(.markstream-octane).markdown-renderer {
@@ -1053,11 +1058,14 @@
 
 :where(.markstream-octane) .code-block-container {
   contain: content;
-  content-visibility: auto;
-  contain-intrinsic-size: 320px 180px;
+  /* A fixed intrinsic height briefly collapses visible code blocks to 180px on
+     refresh before their Pre/editor geometry is measured. Keep code blocks in
+     normal layout; outer node virtualization already handles offscreen cost. */
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
   container-type: inline-size;
-  --markstream-code-fallback-bg: #ffffff;
-  --markstream-code-fallback-fg: #111827;
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: rgb(229 231 235);
   --markstream-code-fallback-selection-bg: rgba(0, 0, 0, 0.06);
   --vscode-editor-selectionBackground: var(--markstream-code-fallback-selection-bg);
@@ -1123,8 +1131,8 @@
 }
 
 :where(.markstream-octane) .code-block-container.is-dark {
-  --markstream-code-fallback-bg: #111827;
-  --markstream-code-fallback-fg: #e5e7eb;
+  --markstream-code-fallback-bg: var(--code-bg);
+  --markstream-code-fallback-fg: var(--code-fg);
   --markstream-code-border-color: rgb(55 65 81 / 0.3);
   --markstream-code-fallback-selection-bg: rgba(255, 255, 255, 0.08);
   --markstream-diff-frame-border: rgb(82 82 91 / 0.56);
@@ -1255,7 +1263,7 @@
 
 :where(.markstream-octane) .code-editor-fallback-surface {
   overflow: auto;
-  padding: 1rem;
+  padding: 0;
 }
 
 :where(.markstream-octane) .code-block-container.is-diff .code-editor-fallback-surface {
@@ -1452,8 +1460,8 @@
   z-index: 1;
   white-space: pre;
   overflow: auto;
-  background: var(--vscode-editor-background, var(--markstream-code-fallback-bg));
-  color: var(--vscode-editor-foreground, var(--markstream-code-fallback-fg));
+  background: var(--markstream-code-fallback-bg, var(--code-bg, #fff));
+  color: var(--markstream-code-fallback-fg, var(--code-fg, #1a1a1a));
   font-size: inherit;
   line-height: inherit;
   font-family: inherit;
@@ -1465,6 +1473,44 @@
   line-height: inherit;
   font-family: inherit;
   font-weight: inherit;
+}
+
+/* Non-diff line numbers use the same gutter geometry as Vue 3. */
+:where(.markstream-octane) pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) {
+  position: relative;
+}
+
+:where(.markstream-octane) pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__line-numbers {
+  position: absolute;
+  top: var(--markstream-pre-line-number-top, 0);
+  left: var(--markstream-pre-line-number-left, 0);
+  box-sizing: content-box;
+  display: flex;
+  width: var(--markstream-pre-line-number-width, 4ch);
+  padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
+  padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
+  color: var(--vscode-editorLineNumber-foreground, #94a3b8);
+  font: inherit;
+  line-height: inherit;
+  pointer-events: none;
+  user-select: none;
+}
+
+:where(.markstream-octane) pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__line-numbers > .markstream-pre__line-numbers-text {
+  display: block;
+  min-height: 1lh;
+  width: 100%;
+  text-align: right;
+  white-space: pre;
+}
+
+:where(.markstream-octane) pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview) > .markstream-pre__code {
+  box-sizing: border-box;
+  display: block;
+  min-width: 100%;
+  padding-left: var(--markstream-code-padding-left, 52px);
+  padding-right: var(--markstream-code-padding-x, 12px);
 }
 
 :where(.markstream-octane) .code-fallback-plain.markstream-pre--diff-preview {
@@ -1733,6 +1779,31 @@
   backface-visibility: hidden;
   transform: translateZ(0);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Standalone Pre uses the renderer's semantic surface. The enhanced fallback
+   keeps its Monaco-theme override in .code-fallback-plain. */
+.markstream-octane pre[data-markstream-pre='1']:not(.code-fallback-plain):not(.markstream-pre--diff-preview) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--code-bg, #fff);
+  color: var(--code-fg);
+  box-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.markstream-octane pre[data-markstream-pre='1']:not(.code-fallback-plain):not(.markstream-pre--diff-preview) > code {
+  color: inherit;
+  background: transparent;
+  font: inherit;
 }
 
 .markstream-octane pre[class^='language-'] > code,

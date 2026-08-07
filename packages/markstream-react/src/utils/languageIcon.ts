@@ -1,16 +1,32 @@
+import CIcon from '../icon/c.svg?raw'
+import CppIcon from '../icon/cpp.svg?raw'
+import CsharpIcon from '../icon/csharp.svg?raw'
 import CssIcon from '../icon/css.svg?raw'
+import GoIcon from '../icon/go.svg?raw'
 import HtmlIcon from '../icon/html.svg?raw'
+import JavaIcon from '../icon/java.svg?raw'
 import JsxReactIcon from '../icon/javascript-react.svg?raw'
 import JsIcon from '../icon/javascript.svg?raw'
 import JsonIcon from '../icon/json.svg?raw'
+import KotlinIcon from '../icon/kotlin.svg?raw'
 import MarkdownIcon from '../icon/markdown.svg?raw'
 import MermaidIcon from '../icon/mermaid.svg?raw'
+import PhpIcon from '../icon/php.svg?raw'
+import PlainIcon from '../icon/plain.svg?raw'
+import PowershellIcon from '../icon/powershell.svg?raw'
 import PythonIcon from '../icon/python.svg?raw'
+import RubyIcon from '../icon/ruby.svg?raw'
+import RustIcon from '../icon/rust.svg?raw'
+import ScssIcon from '../icon/scss.svg?raw'
 import ShellIcon from '../icon/shell.svg?raw'
+import SqlIcon from '../icon/sql.svg?raw'
 import SquareCodeIcon from '../icon/square-code.svg?raw'
 import TextIcon from '../icon/text.svg?raw'
 import TsReactIcon from '../icon/typescript-react.svg?raw'
 import TsIcon from '../icon/typescript.svg?raw'
+import VueIcon from '../icon/vue.svg?raw'
+import XmlIcon from '../icon/xml.svg?raw'
+import YamlIcon from '../icon/yaml.svg?raw'
 
 export type LanguageIconResolver = (lang: string) => string | undefined | null
 
@@ -64,7 +80,7 @@ const LANGUAGE_ALIAS_MAP: Record<string, string> = {
 
 const CORE_LANGUAGE_ICON_MAP: LanguageIconMap = {
   '': TextIcon,
-  'plain': TextIcon,
+  'plain': PlainIcon,
   'text': TextIcon,
   'javascript': JsIcon,
   'typescript': TsIcon,
@@ -72,10 +88,26 @@ const CORE_LANGUAGE_ICON_MAP: LanguageIconMap = {
   'tsx': TsReactIcon,
   'html': HtmlIcon,
   'css': CssIcon,
+  'scss': ScssIcon,
   'json': JsonIcon,
   'python': PythonIcon,
+  'ruby': RubyIcon,
+  'go': GoIcon,
+  'java': JavaIcon,
+  'kotlin': KotlinIcon,
+  'c': CIcon,
+  'cpp': CppIcon,
+  'cs': CsharpIcon,
+  'csharp': CsharpIcon,
+  'php': PhpIcon,
   'shell': ShellIcon,
+  'powershell': PowershellIcon,
+  'sql': SqlIcon,
+  'yaml': YamlIcon,
   'markdown': MarkdownIcon,
+  'xml': XmlIcon,
+  'rust': RustIcon,
+  'vue': VueIcon,
   'mermaid': MermaidIcon,
 }
 
@@ -174,17 +206,60 @@ export const languageMap: Record<string, string> = {
   jsx: 'JSX',
   tsx: 'TSX',
   shell: 'Shell',
+  powershell: 'PowerShell',
   plain: 'Text',
   text: 'Text',
   markdown: 'Markdown',
   json: 'JSON',
   python: 'Python',
+  ruby: 'Ruby',
+  go: 'Go',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  c: 'C',
   cpp: 'C++',
   csharp: 'C#',
+  php: 'PHP',
+  sql: 'SQL',
+  yaml: 'YAML',
+  xml: 'XML',
+  rust: 'Rust',
+  scss: 'SCSS',
   vue: 'Vue',
   html: 'HTML',
   css: 'CSS',
   svg: 'SVG',
   mermaid: 'Mermaid',
   d2: 'D2',
+  ada: 'Ada',
+  applescript: 'AppleScript',
+  assembly: 'Assembly',
+  clojure: 'Clojure',
+  cobol: 'COBOL',
+  crystal: 'Crystal',
+  dart: 'Dart',
+  dlang: 'D',
+  docker: 'Docker',
+  dockerfile: 'Dockerfile',
+  elixir: 'Elixir',
+  erlang: 'Erlang',
+  fortran: 'Fortran',
+  groovy: 'Groovy',
+  haskell: 'Haskell',
+  julia: 'Julia',
+  lisp: 'Lisp',
+  lua: 'Lua',
+  nim: 'Nim',
+  objectivec: 'Objective-C',
+  objectivecpp: 'Objective-C++',
+  ocaml: 'OCaml',
+  perl: 'Perl',
+  prolog: 'Prolog',
+  r: 'R',
+  scala: 'Scala',
+  solidity: 'Solidity',
+  svelte: 'Svelte',
+  swift: 'Swift',
+  terraform: 'Terraform',
+  vbnet: 'VB.NET',
 }

@@ -45,6 +45,63 @@ const displayCode = computed(() => {
   return props.node?.loading === true ? value : value.replace(/\r\n$|\n$|\r$/, '')
 })
 
+let countedCode = ''
+let countedLines = 1
+function countCodeLines(code: string) {
+  let start = 0
+  let count = 1
+
+  if (code.startsWith(countedCode)) {
+    start = countedCode.length
+    count = countedLines
+    if (start > 0 && code[start - 1] === '\r' && code[start] === '\n')
+      start++
+  }
+
+  for (let index = start; index < code.length; index++) {
+    if (code[index] === '\n') {
+      count++
+    }
+    else if (code[index] === '\r') {
+      count++
+      if (code[index + 1] === '\n')
+        index++
+    }
+  }
+
+  countedCode = code
+  countedLines = count
+  return count
+}
+
+const codeLineCount = computed(() => countCodeLines(displayCode.value))
+
+let lineNumbersTextCount = 0
+let lineNumbersTextCache = ''
+const lineNumbersText = computed(() => {
+  const count = codeLineCount.value
+  if (count < lineNumbersTextCount) {
+    lineNumbersTextCount = 0
+    lineNumbersTextCache = ''
+  }
+  for (let line = lineNumbersTextCount + 1; line <= count; line++)
+    lineNumbersTextCache += `${lineNumbersTextCache ? '\n' : ''}${line}`
+  lineNumbersTextCount = count
+  return lineNumbersTextCache
+})
+
+const lineNumberLayoutStyle = computed(() => {
+  // Non-diff fallback only: diff preview keeps its own stream-monaco gutter sizing.
+  if (props.showLineNumbers !== true || isDiffPreview.value)
+    return undefined
+  const maximumLineNumber = codeLineCount.value
+  const width = `${Math.max(4, String(maximumLineNumber).length)}ch`
+  return {
+    '--markstream-pre-line-number-width': width,
+    '--markstream-code-padding-left': 'calc(var(--markstream-pre-line-number-padding-left, 2ch) + var(--markstream-pre-line-number-width, 2ch) + var(--markstream-pre-line-number-padding-right, 1ch) + var(--markstream-pre-line-number-separator-width, 2px) + var(--markstream-pre-line-number-gap-to-code, 1ch))',
+  }
+})
+
 const ariaLabel = computed(() => {
   const lang = normalizedLanguage.value
   return lang ? `Code block: ${lang}` : 'Code block'
@@ -323,6 +380,7 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
 
 <template>
   <pre
+    :style="lineNumberLayoutStyle"
     :class="[
       languageClass,
       {
@@ -337,7 +395,7 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
     :data-markstream-line-numbers="props.showLineNumbers ? '1' : undefined"
     data-markstream-pre="1"
     tabindex="0"
-  ><code v-if="isDiffPreview" translate="no" class="markstream-pre__diff-code"><span v-for="pane in diffPreviewPanes" :key="pane.key" class="markstream-pre__diff-pane" :class="pane.className"><span v-for="line in pane.lines" :key="line.key" class="markstream-pre__diff-line" :class="[`markstream-pre__diff-line--${line.kind}`, { 'markstream-pre__diff-line--empty': line.empty }]"><span class="markstream-pre__diff-rail" aria-hidden="true" /><span class="markstream-pre__diff-number" aria-hidden="true">{{ line.number }}</span><span class="markstream-pre__diff-content"><span class="markstream-pre__diff-content-inner">{{ line.code }}</span></span></span></span></code><code v-else translate="no" v-text="displayCode" /></pre>
+  ><code v-if="isDiffPreview" translate="no" class="markstream-pre__diff-code"><span v-for="pane in diffPreviewPanes" :key="pane.key" class="markstream-pre__diff-pane" :class="pane.className"><span v-for="line in pane.lines" :key="line.key" class="markstream-pre__diff-line" :class="[`markstream-pre__diff-line--${line.kind}`, { 'markstream-pre__diff-line--empty': line.empty }]"><span class="markstream-pre__diff-rail" aria-hidden="true" /><span class="markstream-pre__diff-number" aria-hidden="true">{{ line.number }}</span><span class="markstream-pre__diff-content"><span class="markstream-pre__diff-content-inner">{{ line.code }}</span></span></span></span></code><template v-else><span v-if="props.showLineNumbers" class="markstream-pre__line-numbers" aria-hidden="true"><span class="markstream-pre__line-numbers-text" v-text="lineNumbersText" /></span><code translate="no" class="markstream-pre__code" v-text="displayCode" /></template></pre>
 </template>
 
 <style>
@@ -359,6 +417,75 @@ const diffPreviewPanes = computed(() => isDiffPreview.value ? buildDiffPanes(isI
 .markstream-vue2 pre[class^='language-'] > code,
 .markstream-vue2 pre[class*=' language-'] > code {
   display: block;
+}
+
+.markstream-vue2 pre.code-pre-fallback > .markstream-pre__code {
+  font-size: inherit;
+  line-height: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+}
+
+.markstream-vue2 pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--code-bg, #fff);
+  color: var(--code-fg, hsl(0 0% 10%));
+  box-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+.markstream-vue2 pre[data-markstream-pre='1']:not(.code-pre-fallback):not(.markstream-pre--diff-preview) > code {
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+
+.markstream-vue2 pre.markstream-pre--line-numbers {
+  position: relative;
+}
+
+.markstream-vue2 pre.markstream-pre--line-numbers > .markstream-pre__line-numbers {
+  position: absolute;
+  top: var(--markstream-pre-line-number-top, 0);
+  left: var(--markstream-pre-line-number-left, 0);
+  box-sizing: content-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: var(--markstream-pre-line-number-width, 2ch);
+  min-width: var(--markstream-pre-line-number-width, 2ch);
+  padding-left: var(--markstream-pre-line-number-padding-left, 2ch);
+  padding-right: var(--markstream-pre-line-number-padding-right, 1ch);
+  border-right: var(--markstream-pre-line-number-separator-width, 2px) solid transparent;
+  color: var(--code-line-number, #6b7280);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
+  pointer-events: none;
+  user-select: none;
+}
+
+.markstream-vue2 pre.markstream-pre--line-numbers:not(.markstream-pre--diff-preview):not(.code-pre-fallback) > .markstream-pre__code {
+  box-sizing: border-box;
+  min-width: 100%;
+  padding-left: var(--markstream-code-padding-left, 52px);
+  padding-right: var(--markstream-code-padding-x, 12px);
+}
+
+.markstream-vue2 pre.markstream-pre--line-numbers > .markstream-pre__line-numbers > .markstream-pre__line-numbers-text {
+  display: block;
+  min-height: 1lh;
+  text-align: right;
+  white-space: pre;
 }
 
 .markstream-vue2 pre.markstream-pre--diff-preview {

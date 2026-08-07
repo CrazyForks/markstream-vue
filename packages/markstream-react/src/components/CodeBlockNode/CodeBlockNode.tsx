@@ -5,6 +5,7 @@ import { useViewportPriority } from '../../context/viewportPriority'
 import { useSafeI18n } from '../../i18n/useSafeI18n'
 import { hideTooltip, showTooltipForAnchor } from '../../tooltip/singletonTooltip'
 import { getLanguageIcon, languageMap, normalizeLanguageIdentifier, resolveMonacoLanguageId, subscribeLanguageIconsRevision } from '../../utils/languageIcon'
+import { defaultCodeFontSize, readPositiveCodeMetric, resolveCodeTypography } from './codeTypography'
 import { HtmlPreviewFrame } from './HtmlPreviewFrame'
 import { getUseMonaco } from './monaco'
 import { getDesiredMonacoTheme, registerMonacoThemeSetter, subscribeMonacoThemeApplied } from './monacoThemeRegistry'
@@ -68,22 +69,50 @@ const defaultDiffHideUnchangedRegions = Object.freeze({
   minimumLineCount: 4,
   revealLineCount: 5,
 })
-const defaultPreFallbackFontSize = 12
-const defaultPreFallbackLineHeight = 18
-
-function readPositiveNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
-}
-
 function readMonacoPadding(value: unknown) {
   if (!value || typeof value !== 'object')
     return { top: 0, bottom: 0 }
 
   const raw = value as Record<string, unknown>
   return {
-    top: readPositiveNumber(raw.top) ?? 0,
-    bottom: readPositiveNumber(raw.bottom) ?? 0,
+    top: readPositiveCodeMetric(raw.top) ?? 0,
+    bottom: readPositiveCodeMetric(raw.bottom) ?? 0,
   }
+}
+
+async function waitForEditorVisualReady(container: HTMLElement, whenRuntimeVisualReady?: () => Promise<boolean>) {
+  if (whenRuntimeVisualReady) {
+    try {
+      if (!await whenRuntimeVisualReady())
+        return false
+    }
+    catch {
+      return false
+    }
+  }
+
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function')
+    return false
+
+  const nextFrame = () => new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await nextFrame()
+    const surface = container.querySelector<HTMLElement>([
+      '.monaco-editor',
+      '.monaco-diff-editor',
+      '.stream-diffs-shell',
+      '.stream-monaco-editor',
+      '[data-stream-diffs-state]',
+    ].join(',')) ?? container.firstElementChild as HTMLElement | null
+    if (!surface)
+      continue
+    const rect = surface.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      await nextFrame()
+      return true
+    }
+  }
+  return false
 }
 
 function measureRenderedDiffHeight(container: HTMLElement): number | null {
@@ -243,6 +272,24 @@ function getColorLuminance(color: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+function isTransparentColor(color: string) {
+  const normalized = String(color ?? '').trim().toLowerCase()
+  if (!normalized || normalized === 'transparent')
+    return true
+
+  // Hex with an explicit alpha channel: #RRGGBBAA / #RGBA.
+  const hex8 = normalized.match(/^#([0-9a-f]{8})$/)
+  if (hex8)
+    return Number.parseInt(hex8[1].slice(6), 16) === 0
+  const hex4 = normalized.match(/^#([0-9a-f]{4})$/)
+  if (hex4)
+    return Number.parseInt(hex4[1][3] + hex4[1][3], 16) === 0
+
+  // rgb()/rgba()/hsl()/hsla() with an explicit alpha channel (last value == 0).
+  const channels = normalized.match(/^(?:rgba?|hsla?)\(([^)]+)\)/)?.[1]?.split(/[\s,/]+/).filter(Boolean)
+  return channels?.length === 4 && Number(channels[3]) === 0
+}
+
 function shouldPreferPlainTextFallbackSurface(bg: string, fg: string, isPlainTextLanguage: boolean, expectDark: boolean) {
   if (!isPlainTextLanguage)
     return false
@@ -257,6 +304,45 @@ function shouldPreferPlainTextFallbackSurface(bg: string, fg: string, isPlainTex
 
   return (bgLuminance != null && bgLuminance < 85)
     || (fgLuminance != null && fgLuminance > 190)
+}
+
+function parseCodeFenceInfo(raw: string) {
+  const firstLine = String(raw ?? '').split(/\r?\n/, 1)[0]?.trim() ?? ''
+  if (firstLine.length < 3)
+    return ''
+  const marker = firstLine[0]
+  if ((marker !== '`' && marker !== '~') || firstLine[1] !== marker || firstLine[2] !== marker)
+    return ''
+  let index = 3
+  while (firstLine[index] === marker)
+    index += 1
+  return firstLine.slice(index).trim()
+}
+
+function extractCodeBlockFileLabel(raw: string) {
+  const info = parseCodeFenceInfo(raw)
+  if (!info)
+    return ''
+  const tokens = info.split(/\s+/).filter(Boolean)
+  if (!tokens.length)
+    return ''
+  const candidates = tokens[0] === 'diff' ? tokens.slice(1) : tokens
+  for (const token of candidates) {
+    const value = token.includes(':')
+      ? token.slice(token.indexOf(':') + 1)
+      : token
+    if (value && /[./\\-]/.test(value))
+      return value
+  }
+  return ''
+}
+
+function resolveCodeBlockHeader(raw: string, displayLanguage: string, isDiff: boolean) {
+  const fileLabel = extractCodeBlockFileLabel(raw)
+  return {
+    title: fileLabel || displayLanguage,
+    caption: fileLabel ? (isDiff ? `Diff / ${displayLanguage}` : displayLanguage) : '',
+  }
 }
 
 export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactEvents) {
@@ -280,6 +366,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     showPreviewButton,
     showCollapseButton,
     showFontSizeButtons,
+    showLineNumbers,
     showTooltips,
   } = props
 
@@ -328,10 +415,11 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
 
   const [defaultFontSize, setDefaultFontSize] = useState<number>(() => {
     const initial = Number((resolveCodeBlockMonacoOptions(Boolean(node.diff), monacoOptions) as any)?.fontSize)
-    return Number.isFinite(initial) && initial > 0 ? initial : defaultPreFallbackFontSize
+    return Number.isFinite(initial) && initial > 0 ? initial : defaultCodeFontSize
   })
   const [fontSize, setFontSize] = useState(defaultFontSize)
   const tooltipsEnabled = useMemo(() => showTooltips !== false, [showTooltips])
+  const effectiveShowLineNumbers = showLineNumbers !== false
 
   const getMaxHeightValue = useCallback((): number => {
     const raw = (monacoOptionsRef.current as any)?.MAX_HEIGHT ?? 500
@@ -505,44 +593,6 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     setEditorCreated(false)
   }, [clearEditorHeightSyncBindings])
 
-  const syncEditorCssVars = useCallback(() => {
-    const editorEl = editorHostRef.current
-    const rootEl = containerRef.current
-    if (!editorEl || !rootEl)
-      return
-    if (node.diff) {
-      rootEl.style.removeProperty('--vscode-editor-foreground')
-      rootEl.style.removeProperty('--vscode-editor-background')
-      rootEl.style.removeProperty('--vscode-editor-selectionBackground')
-      return
-    }
-    const src = (editorEl.querySelector('.monaco-editor') as HTMLElement | null) ?? editorEl
-    try {
-      const styles = typeof window !== 'undefined' && window.getComputedStyle
-        ? window.getComputedStyle(src)
-        : null
-      const fg = String(styles?.getPropertyValue('--vscode-editor-foreground') ?? '').trim()
-        || String((styles as any)?.color ?? '').trim()
-      const bg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
-        || String((styles as any)?.backgroundColor ?? '').trim()
-      const sel = String(styles?.getPropertyValue('--vscode-editor-selectionBackground') ?? '').trim()
-      const isPlainTextLanguage = resolveMonacoLanguageId(String(node.language || codeLanguage || detectedLanguage || 'plaintext')) === 'plaintext'
-      if (shouldPreferPlainTextFallbackSurface(bg, fg, isPlainTextLanguage, rootEl.classList.contains('is-dark'))) {
-        rootEl.style.removeProperty('--vscode-editor-foreground')
-        rootEl.style.removeProperty('--vscode-editor-background')
-        rootEl.style.removeProperty('--vscode-editor-selectionBackground')
-        return
-      }
-      if (fg)
-        rootEl.style.setProperty('--vscode-editor-foreground', fg)
-      if (bg)
-        rootEl.style.setProperty('--vscode-editor-background', bg)
-      if (sel)
-        rootEl.style.setProperty('--vscode-editor-selectionBackground', sel)
-    }
-    catch {}
-  }, [codeLanguage, detectedLanguage, node.diff, node.language])
-
   const preferredTheme = useMemo(() => (isDark ? darkTheme : lightTheme), [darkTheme, isDark, lightTheme])
 
   const resolveRequestedTheme = useCallback(() => {
@@ -591,32 +641,41 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
 
   const preFallbackMetrics = useMemo(() => {
     const raw = resolvedMonacoOptions as Record<string, unknown> | null | undefined
-    const resolvedFontSize = readPositiveNumber(raw?.fontSize) ?? fontSize ?? defaultPreFallbackFontSize
-    const resolvedLineHeight = readPositiveNumber(raw?.lineHeight)
-      ?? (resolvedFontSize === defaultPreFallbackFontSize
-        ? defaultPreFallbackLineHeight
-        : Math.max(12, Math.round(resolvedFontSize * 1.5)))
-    const fontFamily = typeof raw?.fontFamily === 'string' && raw.fontFamily.trim()
-      ? raw.fontFamily.trim()
-      : undefined
+    const typography = resolveCodeTypography(resolvedMonacoOptions, fontSize)
     const padding = readMonacoPadding(raw?.padding)
-    const tabSize = readPositiveNumber(raw?.tabSize) ?? 4
+    const defaultPadding = node.diff ? 0 : 8
+    const hasConfiguredPadding = Boolean(raw?.padding && typeof raw.padding === 'object')
+    const tabSize = readPositiveCodeMetric(raw?.tabSize) ?? 4
 
     return {
-      fontFamily,
-      fontSize: resolvedFontSize,
-      lineHeight: resolvedLineHeight,
-      paddingBottom: padding.bottom,
-      paddingTop: padding.top,
+      ...typography,
+      paddingBottom: hasConfiguredPadding ? padding.bottom : defaultPadding,
+      paddingTop: hasConfiguredPadding ? padding.top : defaultPadding,
       tabSize,
     }
-  }, [fontSize, resolvedMonacoOptions])
+  }, [fontSize, node.diff, resolvedMonacoOptions])
 
   const preFallbackDiffInline = useMemo(() => {
     if (!node.diff)
       return false
     return (resolvedMonacoOptions as any)?.renderSideBySide === false
   }, [node.diff, resolvedMonacoOptions])
+
+  const preFallbackLineCount = useMemo(() => {
+    const value = String(node.diff ? (node.updatedCode ?? node.code ?? '') : (node.code ?? ''))
+    if (!value)
+      return 1
+    const displayValue = loading ? value : value.replace(/\r\n$|\n$|\r$/, '')
+    return Math.max(1, displayValue.split(/\r\n|\r|\n/).length)
+  }, [loading, node.code, node.diff, node.updatedCode])
+
+  const preFallbackContentHeight = useMemo(() => {
+    return Math.ceil(
+      preFallbackLineCount * preFallbackMetrics.lineHeight
+      + preFallbackMetrics.paddingTop
+      + preFallbackMetrics.paddingBottom,
+    )
+  }, [preFallbackLineCount, preFallbackMetrics])
 
   const preFallbackStyle = useMemo(() => {
     const style: React.CSSProperties & Record<string, string | number> = {
@@ -636,12 +695,89 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     return style
   }, [preFallbackMetrics])
 
+  const syncEditorCssVars = useCallback(() => {
+    const editorEl = editorHostRef.current
+    const rootEl = containerRef.current
+    if (!editorEl || !rootEl)
+      return
+
+    // Match Vue 3: the shell and visible Pre stay on --code-bg/--code-fg.
+    // Runtime theme variables belong to the editor layer only.
+    rootEl.style.removeProperty('--vscode-editor-foreground')
+    rootEl.style.removeProperty('--vscode-editor-background')
+    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+    // Align the enhanced surface with the pre-fallback geometry. stream-diffs /
+    // pierre honor these CSS variables on the editor host (custom properties
+    // inherit across the pierre shadow boundary):
+    // - `--diffs-tab-size`: fallback defaults to 4, pierre defaults to 2.
+    // - `--diffs-gap-block`: only set when the consumer explicitly configures
+    //   padding — the default 8px gap already matches the fallback.
+    editorEl.style.setProperty('--diffs-tab-size', String(preFallbackMetrics.tabSize))
+    const configuredPadding = (resolvedMonacoOptions as any)?.padding
+    if (configuredPadding && typeof configuredPadding === 'object')
+      editorEl.style.setProperty('--diffs-gap-block', `${preFallbackMetrics.paddingTop}px`)
+    else
+      editorEl.style.removeProperty('--diffs-gap-block')
+    if (node.diff) {
+      editorEl.style.removeProperty('--vscode-editor-foreground')
+      editorEl.style.removeProperty('--vscode-editor-background')
+      editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+      return
+    }
+
+    const src = (editorEl.querySelector('.monaco-editor') as HTMLElement | null) ?? editorEl
+    try {
+      const styles = typeof window !== 'undefined' && window.getComputedStyle
+        ? window.getComputedStyle(src)
+        : null
+      const fg = String(styles?.getPropertyValue('--vscode-editor-foreground') ?? '').trim()
+        || String((styles as any)?.color ?? '').trim()
+      const themeBg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
+      const computedBg = String((styles as any)?.backgroundColor ?? '').trim()
+      const bg = !isTransparentColor(themeBg)
+        ? themeBg
+        : (!isTransparentColor(computedBg) ? computedBg : '')
+      const sel = String(styles?.getPropertyValue('--vscode-editor-selectionBackground') ?? '').trim()
+      const isPlainTextLanguage = resolveMonacoLanguageId(String(node.language || codeLanguage || detectedLanguage || 'plaintext')) === 'plaintext'
+      if (shouldPreferPlainTextFallbackSurface(bg, fg, isPlainTextLanguage, rootEl.classList.contains('is-dark'))) {
+        editorEl.style.removeProperty('--vscode-editor-foreground')
+        editorEl.style.removeProperty('--vscode-editor-background')
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+        return
+      }
+      if (fg)
+        editorEl.style.setProperty('--vscode-editor-foreground', fg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-foreground')
+      if (bg)
+        editorEl.style.setProperty('--vscode-editor-background', bg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-background')
+      if (sel)
+        editorEl.style.setProperty('--vscode-editor-selectionBackground', sel)
+      else
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+    }
+    catch {}
+  }, [codeLanguage, detectedLanguage, node.diff, node.language, preFallbackMetrics, resolvedMonacoOptions])
+
   const buildRuntimeMonacoOptions = useCallback(() => {
     const nextOptions = {
       wordWrap: 'on',
       wrappingIndent: 'same',
-      themes,
       ...(resolvedMonacoOptions || {}),
+      themes,
+      // CodeBlockNode owns the streaming fallback and header. Mount only the
+      // final highlighted surface so line numbers and geometry are ready before
+      // the fallback is removed.
+      stream: false,
+      disableFileHeader: true,
+      lineNumbers: effectiveShowLineNumbers,
+      fontSize: preFallbackMetrics.fontSize,
+      lineHeight: preFallbackMetrics.lineHeight,
+      padding: { top: preFallbackMetrics.paddingTop, bottom: preFallbackMetrics.paddingBottom },
+      tabSize: preFallbackMetrics.tabSize,
+      ...(preFallbackMetrics.fontFamily ? { fontFamily: preFallbackMetrics.fontFamily } : {}),
       theme: requestedTheme,
       ...(node.diff ? { diffAppearance: effectiveDiffAppearance } : {}),
       onThemeChange() {
@@ -649,17 +785,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
       },
     } as Record<string, any>
 
-    if (node.diff) {
-      nextOptions.fontSize ??= preFallbackMetrics.fontSize
-      nextOptions.lineHeight ??= preFallbackMetrics.lineHeight
-      nextOptions.padding ??= { top: preFallbackMetrics.paddingTop, bottom: preFallbackMetrics.paddingBottom }
-      nextOptions.tabSize ??= preFallbackMetrics.tabSize
-      if (preFallbackMetrics.fontFamily)
-        nextOptions.fontFamily ??= preFallbackMetrics.fontFamily
-    }
+    const configuredUnsafeCSS = typeof nextOptions.unsafeCSS === 'string'
+      ? nextOptions.unsafeCSS
+      : ''
+    nextOptions.unsafeCSS = `[data-file], [data-diff] { --diffs-min-number-column-width-default: 4ch !important; }
+${configuredUnsafeCSS}`.trim()
 
     return nextOptions
-  }, [effectiveDiffAppearance, node.diff, preFallbackMetrics, requestedTheme, resolvedMonacoOptions, syncEditorCssVars, themes])
+  }, [effectiveDiffAppearance, effectiveShowLineNumbers, node.diff, preFallbackMetrics, requestedTheme, resolvedMonacoOptions, syncEditorCssVars, themes])
 
   const syncRuntimeMonacoOptions = useCallback(() => {
     const nextOptions = buildRuntimeMonacoOptions()
@@ -816,6 +949,13 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     return languageMap[lang] || lang.charAt(0).toUpperCase() + lang.slice(1)
   }, [canonicalLanguage])
 
+  const codeBlockHeader = useMemo(
+    () => resolveCodeBlockHeader(String(node.raw ?? ''), displayLanguage, Boolean(node.diff)),
+    [displayLanguage, node.diff, node.raw],
+  )
+  const headerTitle = codeBlockHeader.title
+  const headerCaption = codeBlockHeader.caption
+
   const resolvedCode = useMemo(() => {
     if (node.diff)
       return node.updatedCode ?? node.code ?? ''
@@ -840,21 +980,12 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
       style.borderColor = 'var(--markstream-diff-shell-border)'
     }
     else {
-      style.color = `var(--vscode-editor-foreground, ${resolvedSurfaceIsDark ? '#e5e7eb' : '#111827'})`
-      style.backgroundColor = `var(--vscode-editor-background, ${resolvedSurfaceIsDark ? '#111827' : '#ffffff'})`
-      style.borderColor = resolvedSurfaceIsDark ? 'rgb(55 65 81 / 0.3)' : 'rgb(229 231 235)'
+      style.color = 'var(--vscode-editor-foreground, var(--markstream-code-fallback-fg, var(--code-fg)))'
+      style.backgroundColor = 'var(--vscode-editor-background, var(--markstream-code-fallback-bg, var(--code-bg)))'
+      style.borderColor = 'var(--markstream-code-border-color, var(--code-border))'
     }
     return style
-  }, [maxWidth, minWidth, node.diff, resolvedSurfaceIsDark])
-
-  const headerStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (node.diff)
-      return undefined
-    return {
-      color: `var(--vscode-editor-foreground, ${resolvedSurfaceIsDark ? '#e5e7eb' : '#111827'})`,
-      backgroundColor: `var(--vscode-editor-background, ${resolvedSurfaceIsDark ? '#111827' : '#ffffff'})`,
-    }
-  }, [node.diff, resolvedSurfaceIsDark])
+  }, [maxWidth, minWidth, node.diff])
 
   const hasStreamingCode = useMemo(() => {
     return node.code.length > 0
@@ -996,6 +1127,22 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
         syncEditorCssVars()
         if (!expanded && !collapsed)
           scheduleEditorHeightSync(false)
+        // Time-box the handoff: if visual readiness can't be confirmed (e.g.
+        // stream-monaco fallback inside a hidden/zero-size container, or a
+        // runtime that never resolves whenVisualReady), reveal the live editor
+        // anyway after a short grace period instead of stranding the block in
+        // the pre-fallback forever.
+        const visuallyReady = await Promise.race([
+          waitForEditorVisualReady(el, helpers.whenVisualReady),
+          new Promise<boolean>((resolve) => {
+            window.setTimeout(() => resolve(true), 1500)
+          }),
+        ])
+        if (editorLifecycleIdRef.current !== creationId)
+          return
+        if (!visuallyReady)
+          return
+        applyEditorHeight(expanded)
         setEditorReady(true)
       }
       catch {
@@ -1012,7 +1159,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     })
     createEditorPromiseRef.current = tracked
     return tracked
-  }, [bindDiffEditorHeightSync, clearEditorHeightSyncBindings, collapsed, expanded, monacoLanguage, scheduleEditorHeightSync, shouldDelayEditor, syncEditorCssVars, syncRuntimeMonacoOptions, useFallback, viewportReady])
+  }, [applyEditorHeight, bindDiffEditorHeightSync, collapsed, expanded, monacoLanguage, scheduleEditorHeightSync, shouldDelayEditor, syncEditorCssVars, syncRuntimeMonacoOptions, useFallback, viewportReady])
 
   useEffect(() => {
     syncRuntimeMonacoOptions()
@@ -1255,7 +1402,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
       ref={containerRef}
       className={[
         'code-block-container my-4 rounded-lg border overflow-hidden shadow-sm',
-        resolvedSurfaceIsDark ? 'border-gray-700/30 bg-gray-900' : 'border-gray-200 bg-white',
+        resolvedSurfaceIsDark ? 'border-gray-700/30' : 'border-gray-200',
         loading ? 'is-rendering' : '',
         resolvedSurfaceIsDark ? 'is-dark' : '',
         node.diff ? 'is-diff' : '',
@@ -1264,23 +1411,25 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
       style={containerStyle}
     >
       {showHeader && (
-        <div
-          className="code-block-header flex justify-between items-center px-4 py-2.5 border-b border-gray-400/5"
-          style={headerStyle}
-        >
-          <div className="flex items-center space-x-2 flex-1 overflow-hidden">
+        <div className="code-block-header">
+          <div className="code-header-main">
             <span
               className="icon-slot h-4 w-4 flex-shrink-0"
               // language icons are trusted internal assets or user-supplied via resolver
               dangerouslySetInnerHTML={{ __html: languageIcon }}
             />
-            <span className="text-sm font-medium font-mono truncate">{displayLanguage}</span>
+            <div className="code-header-copy min-w-0">
+              <div className="code-header-title truncate">{headerTitle}</div>
+              {headerCaption && (
+                <div className="code-header-caption truncate">{headerCaption}</div>
+              )}
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="code-header-actions">
             {showCollapseButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-pressed={collapsed}
                 onClick={() => setCollapsed(v => !v)}
                 onMouseEnter={e => onBtnHover(e, collapsed ? (t('common.expand') || 'Expand') : (t('common.collapse') || 'Collapse'))}
@@ -1297,7 +1446,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                   width="1em"
                   height="1em"
                   viewBox="0 0 24 24"
-                  className="w-3 h-3"
+                  className="action-icon"
                 >
                   <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 18l6-6l-6-6" />
                 </svg>
@@ -1308,7 +1457,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
               <>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize <= 10}
                   onClick={() => setFontSize(v => Math.max(10, v - 1))}
                   onMouseEnter={e => onBtnHover(e, t('common.decrease') || 'Decrease')}
@@ -1324,14 +1473,14 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14" />
                   </svg>
                 </button>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize === defaultFontSize}
                   onClick={() => setFontSize(defaultFontSize)}
                   onMouseEnter={e => onBtnHover(e, t('common.reset') || 'Reset')}
@@ -1347,7 +1496,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                       <path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -1357,7 +1506,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                 </button>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize >= 36}
                   onClick={() => setFontSize(v => Math.min(36, v + 1))}
                   onMouseEnter={e => onBtnHover(e, t('common.increase') || 'Increase')}
@@ -1373,7 +1522,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14m-7-7v14" />
                   </svg>
@@ -1384,7 +1533,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
             {showCopyButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-label={copied ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy')}
                 onClick={copy}
                 onMouseEnter={e => onBtnHover(e, copied ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy'))}
@@ -1402,7 +1551,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                           <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
@@ -1419,7 +1568,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6L9 17l-5-5" />
                       </svg>
@@ -1430,7 +1579,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
             {showExpandButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-pressed={expanded}
                 onClick={(e) => {
                   setExpanded(v => !v)
@@ -1451,7 +1600,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" />
                       </svg>
@@ -1465,7 +1614,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" />
                       </svg>
@@ -1476,7 +1625,7 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
             {isPreviewable && showPreviewButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-label={t('common.preview') || 'Preview'}
                 onClick={previewCode}
                 onMouseEnter={e => onBtnHover(e, t('common.preview') || 'Preview')}
@@ -1504,8 +1653,9 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                   className="code-fallback-plain m-0"
                   diffInline={preFallbackDiffInline}
                   node={node}
-                  showLineNumbers={Boolean(node.diff)}
+                  showLineNumbers={effectiveShowLineNumbers}
                   style={preFallbackStyle}
+                  monacoOptions={resolvedMonacoOptions}
                 />
               )
             : (
@@ -1513,7 +1663,12 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                   <div
                     ref={editorHostRef}
                     className={`code-editor-container${stream ? '' : ' code-height-placeholder'}`}
-                    style={{ visibility: editorReady ? 'visible' : 'hidden' }}
+                    data-markstream-enhanced={editorReady ? 'true' : 'false'}
+                    data-markstream-host-hidden={editorReady ? undefined : 'true'}
+                    style={{
+                      '--markstream-editor-initial-height': `${preFallbackContentHeight}px`,
+                      'visibility': editorReady ? 'visible' : 'hidden',
+                    } as React.CSSProperties}
                     aria-hidden={!editorReady}
                   />
                   {!editorReady && (
@@ -1524,8 +1679,9 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
                         className="code-fallback-plain m-0"
                         diffInline={preFallbackDiffInline}
                         node={node as any}
-                        showLineNumbers={Boolean(node.diff)}
+                        showLineNumbers={effectiveShowLineNumbers}
                         style={preFallbackStyle}
+                        monacoOptions={resolvedMonacoOptions}
                       />
                     </div>
                   )}

@@ -247,6 +247,9 @@ importers:
       mermaid:
         specifier: '>=11'
         version: 11.12.3
+      stream-diffs:
+        specifier: '>=0.0.2'
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3))
       stream-markdown-parser:
         specifier: workspace:*
         version: link:../markdown-parser
@@ -332,7 +335,7 @@ importers:
     devDependencies:
       '@octanejs/testing-library':
         specifier: ^0.1.18
-        version: 0.1.18(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))
+        version: 0.1.18(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -341,7 +344,7 @@ importers:
         version: 0.1.56(@typescript-eslint/types@8.65.0)
       '@tsrx/typescript-plugin':
         specifier: ^0.3.118
-        version: 0.3.118(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))(typescript@5.9.3)
+        version: 0.3.118(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))(typescript@5.9.3)
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.17
@@ -353,7 +356,7 @@ importers:
         version: 24.1.3
       octane:
         specifier: ^0.1.21
-        version: 0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+        version: 0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       rollup:
         specifier: ^3.30.0
         version: 3.30.0
@@ -371,10 +374,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^8.0.16
-        version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+        version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
       vite-plugin-dts:
         specifier: ^4.5.4
-        version: 4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+        version: 4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
 
   packages/markstream-react:
     dependencies:
@@ -405,6 +408,9 @@ importers:
       react-dom:
         specifier: '>=18'
         version: 18.3.1(react@18.3.1)
+      stream-diffs:
+        specifier: '>=0.0.2'
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vue@3.5.25(typescript@5.9.3))
       stream-markdown:
         specifier: '>=0.0.16'
         version: 0.0.16(react@18.3.1)(shiki@4.3.1)(vue@3.5.25(typescript@5.9.3))
@@ -423,7 +429,7 @@ importers:
         version: 18.3.7(@types/react@18.3.31)
       '@vitejs/plugin-react-swc':
         specifier: ^3.11.0
-        version: 3.11.0(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+        version: 3.11.0(vite@7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       autoprefixer:
         specifier: ^10.5.4
         version: 10.5.4(postcss@8.5.24)
@@ -444,10 +450,10 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^7.3.6
-        version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+        version: 7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
       vite-plugin-dts:
         specifier: ^4.5.4
-        version: 4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+        version: 4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
 
   packages/markstream-svelte:
     dependencies:
@@ -469,6 +475,9 @@ importers:
       mermaid:
         specifier: '>=11'
         version: 11.13.0
+      stream-diffs:
+        specifier: '>=0.0.2'
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3))
       stream-markdown-parser:
         specifier: workspace:*
         version: link:../markdown-parser
@@ -530,6 +539,9 @@ importers:
       mermaid:
         specifier: '>=11'
         version: 11.12.2
+      stream-diffs:
+        specifier: '>=0.0.2'
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@2.7.16)
       stream-markdown:
         specifier: '>=0.0.16'
         version: 0.0.16(react@19.2.8)(shiki@4.3.1)(vue@2.7.16)
@@ -691,15 +703,12 @@ importers:
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
-      stream-monaco:
+      stream-diffs:
         specifier: latest
-        version: 0.0.20(monaco-editor@0.52.2)
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3))
     devDependencies:
       '@types/node':
         specifier: ^18.19.130
@@ -710,9 +719,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@18.19.130)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.2
-        version: 2.0.2(monaco-editor@0.52.2)
 
   playground-next14:
     dependencies:
@@ -731,9 +737,6 @@ importers:
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       next:
         specifier: 14.2.35
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.101.0)
@@ -743,9 +746,9 @@ importers:
       react-dom:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
-      stream-monaco:
+      stream-diffs:
         specifier: latest
-        version: 0.0.36(monaco-editor@0.52.2)
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vue@3.5.25(typescript@5.9.3))
     devDependencies:
       '@types/node':
         specifier: ^18.19.130
@@ -777,9 +780,6 @@ importers:
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       next:
         specifier: 15.5.14
         version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.101.0)
@@ -789,9 +789,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
-      stream-monaco:
+      stream-diffs:
         specifier: latest
-        version: 0.0.36(monaco-editor@0.52.2)
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vue@3.5.25(typescript@5.9.3))
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -832,18 +832,15 @@ importers:
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       nuxt:
         specifier: ^4.5.1
         version: 4.5.1(@babel/plugin-proposal-decorators@7.28.6(@babel/core@7.29.7))(@babel/plugin-syntax-jsx@7.27.1(@babel/core@7.29.7))(@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7))(@parcel/watcher@2.5.6)(@types/node@24.13.3)(@vue/compiler-sfc@3.5.25)(commander@14.0.3)(db0@0.3.4)(esbuild@0.28.0)(eslint@9.39.5(jiti@2.7.0))(ioredis@5.10.1)(less@4.6.7)(lightningcss@1.33.0)(magicast@0.5.2)(meow@13.2.0)(optionator@0.9.4)(oxc-parser@0.140.0)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.25(typescript@5.9.3)))(rollup-plugin-visualizer@7.0.1(rolldown@1.2.0)(rollup@4.60.4))(rollup@4.60.4)(sass@1.101.0)(srvx@0.11.22)(terser@5.49.0)(tsx@4.23.1)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))(vue-tsc@2.2.12(typescript@5.9.3))(webpack@4.47.0)(yaml@2.9.0)
+      stream-diffs:
+        specifier: latest
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3))
       stream-markdown:
         specifier: latest
         version: 0.0.14(shiki@4.3.1)
-      stream-monaco:
-        specifier: latest
-        version: 0.0.20(monaco-editor@0.52.2)
       vue-i18n:
         specifier: ^11.4.8
         version: 11.4.8(vue@3.5.25(typescript@5.9.3))
@@ -936,9 +933,6 @@ importers:
       autoprefixer:
         specifier: ^10.5.4
         version: 10.5.4(postcss@8.5.24)
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       postcss:
         specifier: ^8.5.24
         version: 8.5.24
@@ -951,9 +945,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.2
-        version: 2.0.2(monaco-editor@0.52.2)
 
   playground-react19:
     dependencies:
@@ -997,9 +988,6 @@ importers:
       globals:
         specifier: ^17.8.0
         version: 17.8.0
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       tailwindcss:
         specifier: ^3.4.19
         version: 3.4.19(tsx@4.23.1)(yaml@2.9.0)
@@ -1012,9 +1000,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.2
-        version: 2.0.2(monaco-editor@0.52.2)
 
   playground-svelte:
     dependencies:
@@ -1033,15 +1018,15 @@ importers:
       mermaid:
         specifier: '>=11.16.0'
         version: 11.16.0
+      stream-diffs:
+        specifier: latest
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3))
       stream-markdown:
         specifier: latest
         version: 0.0.15(react@19.2.8)(shiki@4.3.1)(vue@3.5.25(typescript@5.9.3))
       stream-markdown-parser:
         specifier: workspace:*
         version: link:../packages/markdown-parser
-      stream-monaco:
-        specifier: latest
-        version: 0.0.40(monaco-editor@0.52.2)
       svelte:
         specifier: ^5.56.8
         version: 5.56.8(@typescript-eslint/types@8.65.0)
@@ -1049,9 +1034,6 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^6.2.4
         version: 6.2.4(svelte@5.56.8(@typescript-eslint/types@8.65.0))(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       svelte-check:
         specifier: ^4.7.4
         version: 4.7.4(picomatch@4.0.5)(svelte@5.56.8(@typescript-eslint/types@8.65.0))(typescript@5.9.3)
@@ -1061,9 +1043,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.2
-        version: 2.0.2(monaco-editor@0.52.2)
 
   playground-vue2:
     dependencies:
@@ -1076,9 +1055,9 @@ importers:
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      stream-monaco:
+      stream-diffs:
         specifier: latest
-        version: 0.0.20(monaco-editor@0.52.2)
+        version: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@2.7.16)
       vue:
         specifier: 2.7.16
         version: 2.7.16
@@ -1095,18 +1074,12 @@ importers:
       '@vue/compiler-sfc':
         specifier: 2.7.16
         version: 2.7.16
-      monaco-editor:
-        specifier: ^0.52.2
-        version: 0.52.2
       postcss-nesting:
         specifier: ^13.0.2
         version: 13.0.2(postcss@8.5.24)
       vite:
         specifier: ^4.5.14
         version: 4.5.14(@types/node@24.13.3)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)
-      vite-plugin-monaco-editor-esm:
-        specifier: ^2.0.2
-        version: 2.0.2(monaco-editor@0.52.2)
       vue-template-compiler:
         specifier: 2.7.16
         version: 2.7.16
@@ -12917,24 +12890,6 @@ packages:
     peerDependencies:
       shiki: '>=3.23.0'
 
-  stream-monaco@0.0.20:
-    resolution: {integrity: sha512-ESBz0eW+ItcodfoEmC9XmL9sBU3kJUXZvYr7ccQyc0RBzUPK1fozT9ufqpmdDC9FXNc6+8UdAzGqLTR2kLpLfg==}
-    hasBin: true
-    peerDependencies:
-      monaco-editor: ^0.52.2
-
-  stream-monaco@0.0.36:
-    resolution: {integrity: sha512-75cj3oS6eo9DiUc6RoMSoNqeVmWi/PS5rSsUv5Nqkx97V/3wuUSMo4+pvHRHftf6ZuIuOCXdUWpIEagPHfscJg==}
-    hasBin: true
-    peerDependencies:
-      monaco-editor: ^0.52.2
-
-  stream-monaco@0.0.40:
-    resolution: {integrity: sha512-emnU5PsbJxe3PuiSyv+IeNTMVY0SAATHD7Xv4ZBhDC3FRFpTm2XDvOQfN/DdGblYX0wf6gh2GVOkVr62BSIERQ==}
-    hasBin: true
-    peerDependencies:
-      monaco-editor: '>=0.52.2 <0.56.0'
-
   stream-monaco@0.0.48:
     resolution: {integrity: sha512-7Jz4IxnS75epdhM4t3deqa55BL5D0Z+YUBAMz9l8dOc/O2rj1WLKBQom8QQuVQCLBHjtVI/8Kuim+mePl4W2Fw==}
     hasBin: true
@@ -17918,10 +17873,10 @@ snapshots:
       - tsx
       - yaml
 
-  '@octanejs/testing-library@0.1.18(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))':
+  '@octanejs/testing-library@0.1.18(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))':
     dependencies:
       '@testing-library/dom': 10.4.1
-      octane: 0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
+      octane: 0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
 
   '@one-ini/wasm@0.1.1': {}
 
@@ -18060,6 +18015,34 @@ snapshots:
       '@parcel/watcher-win32-ia32': 2.5.6
       '@parcel/watcher-win32-x64': 2.5.6
 
+  '@pierre/diffs@1.2.12(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@pierre/theme': 1.1.0
+      '@pierre/theming': 0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(shiki@4.3.1)
+      '@shikijs/transformers': 4.3.1
+      diff: 9.0.0
+      hast-util-to-html: 9.0.5
+      lru_map: 0.4.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      shiki: 4.3.1
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+
+  '@pierre/diffs@1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@pierre/theme': 1.1.0
+      '@pierre/theming': 0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.3.1)
+      '@shikijs/transformers': 4.3.1
+      diff: 9.0.0
+      hast-util-to-html: 9.0.5
+      lru_map: 0.4.1
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      shiki: 4.3.1
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+
   '@pierre/diffs@1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@pierre/theme': 1.1.0
@@ -18075,6 +18058,22 @@ snapshots:
       - '@shikijs/themes'
 
   '@pierre/theme@1.1.0': {}
+
+  '@pierre/theming@0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(shiki@4.3.1)':
+    optionalDependencies:
+      '@pierre/theme': 1.1.0
+      '@shikijs/themes': 4.3.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      shiki: 4.3.1
+
+  '@pierre/theming@0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(shiki@4.3.1)':
+    optionalDependencies:
+      '@pierre/theme': 1.1.0
+      '@shikijs/themes': 4.3.1
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      shiki: 4.3.1
 
   '@pierre/theming@0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)':
     optionalDependencies:
@@ -18812,14 +18811,6 @@ snapshots:
     transitivePeerDependencies:
       - '@typescript-eslint/types'
 
-  '@tsrx/typescript-plugin@0.3.118(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))(typescript@5.9.3)':
-    dependencies:
-      '@volar/language-core': 2.4.28
-      '@volar/typescript': 2.4.28
-      typescript: 5.9.3
-    optionalDependencies:
-      octane: 0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
-
   '@tsrx/typescript-plugin@0.3.118(octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)))(typescript@5.9.3)':
     dependencies:
       '@volar/language-core': 2.4.28
@@ -19497,6 +19488,14 @@ snapshots:
       - cac
       - srvx
       - typescript
+
+  '@vitejs/plugin-react-swc@3.11.0(vite@7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.0-beta.27
+      '@swc/core': 1.15.7
+      vite: 7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@swc/helpers'
 
   '@vitejs/plugin-react-swc@3.11.0(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))':
     dependencies:
@@ -26603,19 +26602,6 @@ snapshots:
 
   obug@2.1.1: {}
 
-  octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
-    dependencies:
-      '@tsrx/core': 0.1.56(@typescript-eslint/types@8.65.0)
-      '@types/react': 19.2.17
-      devalue: 5.8.2
-      esrap: 2.3.0(@typescript-eslint/types@8.65.0)
-    optionalDependencies:
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
-    transitivePeerDependencies:
-      - '@typescript-eslint/types'
-
   octane@0.1.21(@typescript-eslint/types@8.65.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
     dependencies:
       '@tsrx/core': 0.1.56(@typescript-eslint/types@8.65.0)
@@ -28832,6 +28818,36 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 2.3.8
 
+  stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vue@3.5.25(typescript@5.9.3)):
+    dependencies:
+      '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+    optionalDependencies:
+      vue: 3.5.25(typescript@5.9.3)
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+      - react
+      - react-dom
+
+  stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vue@3.5.25(typescript@5.9.3)):
+    dependencies:
+      '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    optionalDependencies:
+      vue: 3.5.25(typescript@5.9.3)
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+      - react
+      - react-dom
+
+  stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@2.7.16):
+    dependencies:
+      '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+    optionalDependencies:
+      vue: 2.7.16
+    transitivePeerDependencies:
+      - '@shikijs/themes'
+      - react
+      - react-dom
+
   stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.25(typescript@5.9.3)):
     dependencies:
       '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -28894,27 +28910,6 @@ snapshots:
       - react
       - solid-js
       - vue
-
-  stream-monaco@0.0.20(monaco-editor@0.52.2):
-    dependencies:
-      '@shikijs/monaco': 3.23.0
-      alien-signals: 2.0.8
-      monaco-editor: 0.52.2
-      shiki: 3.23.0
-
-  stream-monaco@0.0.36(monaco-editor@0.52.2):
-    dependencies:
-      '@shikijs/monaco': 3.23.0
-      alien-signals: 2.0.8
-      monaco-editor: 0.52.2
-      shiki: 3.23.0
-
-  stream-monaco@0.0.40(monaco-editor@0.52.2):
-    dependencies:
-      '@shikijs/monaco': 3.23.0
-      alien-signals: 2.0.8
-      monaco-editor: 0.52.2
-      shiki: 3.23.0
 
   stream-monaco@0.0.48(monaco-editor@0.52.2):
     dependencies:
@@ -30226,7 +30221,7 @@ snapshots:
       - rollup
       - supports-color
 
-  vite-plugin-dts@4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
+  vite-plugin-dts@4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
     dependencies:
       '@microsoft/api-extractor': 7.55.1(@types/node@24.13.3)
       '@rollup/pluginutils': 5.3.0(rollup@3.30.0)
@@ -30239,13 +30234,13 @@ snapshots:
       magic-string: 0.30.21
       typescript: 5.9.3
     optionalDependencies:
-      vite: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+      vite: 7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@types/node'
       - rollup
       - supports-color
 
-  vite-plugin-dts@4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
+  vite-plugin-dts@4.5.4(@types/node@24.13.3)(rollup@3.30.0)(typescript@5.9.3)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)):
     dependencies:
       '@microsoft/api-extractor': 7.55.1(@types/node@24.13.3)
       '@rollup/pluginutils': 5.3.0(rollup@3.30.0)
@@ -30258,7 +30253,7 @@ snapshots:
       magic-string: 0.30.21
       typescript: 5.9.3
     optionalDependencies:
-      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
+      vite: 8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@2.7.0)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@types/node'
       - rollup
@@ -30404,6 +30399,25 @@ snapshots:
       tsx: 4.23.1
       yaml: 2.9.0
 
+  vite@7.3.6(@types/node@24.13.3)(jiti@1.21.7)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0):
+    dependencies:
+      esbuild: 0.28.0
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
+      postcss: 8.5.24
+      rollup: 4.60.4
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.13.3
+      fsevents: 2.3.3
+      jiti: 1.21.7
+      less: 4.6.7
+      lightningcss: 1.33.0
+      sass: 1.101.0
+      terser: 5.49.0
+      tsx: 4.23.1
+      yaml: 2.9.0
+
   vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(less@4.6.7)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0):
     dependencies:
       esbuild: 0.28.0
@@ -30418,24 +30432,6 @@ snapshots:
       jiti: 2.7.0
       less: 4.6.7
       lightningcss: 1.33.0
-      sass: 1.101.0
-      terser: 5.49.0
-      tsx: 4.23.1
-      yaml: 2.9.0
-
-  vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.0)(jiti@1.21.7)(less@4.6.7)(sass@1.101.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0):
-    dependencies:
-      lightningcss: 1.33.0
-      picomatch: 4.0.5
-      postcss: 8.5.24
-      rolldown: 1.1.5
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 24.13.3
-      esbuild: 0.28.0
-      fsevents: 2.3.3
-      jiti: 1.21.7
-      less: 4.6.7
       sass: 1.101.0
       terser: 5.49.0
       tsx: 4.23.1

@@ -1,7 +1,6 @@
 import path from 'node:path'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
-import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 
 export default defineConfig(({ mode }) => ({
   base: './',
@@ -12,7 +11,7 @@ export default defineConfig(({ mode }) => ({
     format: 'es',
   },
   optimizeDeps: {
-    exclude: ['stream-monaco'],
+    exclude: ['stream-diffs'],
   },
   // Only use alias in dev mode - for production build, use the built package
   resolve: mode === 'development'
@@ -24,17 +23,5 @@ export default defineConfig(({ mode }) => ({
     : undefined,
   plugins: [
     react(),
-    monacoEditorPlugin({
-      languageWorkers: [
-        'editorWorkerService',
-        'typescript',
-        'css',
-        'html',
-        'json',
-      ],
-      customDistPath(_root, buildOutDir) {
-        return path.resolve(buildOutDir, 'monacoeditorwork')
-      },
-    }),
   ],
 }))

@@ -115,6 +115,9 @@ export interface CodeBlockNodeProps extends CommonCodeBlockProps {
   htmlPreviewAllowScripts?: boolean
   htmlPreviewSandbox?: string
   customId?: string
+  estimatedHeightPx?: number
+  estimatedContentHeightPx?: number
+  estimatedDiffInline?: boolean
 }
 
 export interface ImageNodeProps {

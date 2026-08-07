@@ -37,6 +37,32 @@ export async function getUseMonaco() {
   if (importAttempted)
     return null
 
+  // Prefer `stream-diffs`: smaller runtime without the heavy
+  // `monaco-editor` dependency. Consumers on Webpack 4 / CJS toolchains that
+  // install `stream-monaco` keep using its legacy entry below.
+  try {
+    const diffs = await import('stream-diffs')
+    const resolved = (diffs as any)?.default ?? diffs
+    if (typeof resolved?.useMonaco === 'function') {
+      mod = resolved
+      await preload(mod)
+      // Warm up the tokenizer stack like the legacy path. stream-diffs does
+      // not export getOrCreateHighlighter today, so warmupShikiTokenizer
+      // short-circuits to true; the call keeps both runtime paths aligned if
+      // stream-diffs later gains the same stack.
+      const ok = await warmupShikiTokenizer(mod)
+      if (!ok) {
+        mod = null
+        importAttempted = true
+        return null
+      }
+      return mod
+    }
+  }
+  catch {
+    // stream-diffs is not installed; fall through to stream-monaco/legacy.
+  }
+
   try {
     const imported = await import('stream-monaco/legacy')
     mod = (imported as any)?.default ?? imported

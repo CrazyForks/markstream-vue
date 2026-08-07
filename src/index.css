@@ -155,7 +155,9 @@
   --tooltip-bg:                 hsl(0 0% 12%);
   --tooltip-fg:                 hsl(0 0% 72%);
 
-  /* Code block: header slightly darker than body in dark mode */
+  /* Code block defaults stay stable across renderers; explicit editor themes
+   * can still paint the enhanced surface. */
+  --code-bg:                    #111827;
   --code-header-bg:             hsl(var(--ms-muted));
 
   /* Admonition: stronger tint on dark backgrounds */
@@ -184,7 +186,7 @@
   --inline-code-border:         hsl(var(--ms-border) / 0.9);
 
   /* ── Code block ── */
-  --code-bg:                    hsl(var(--ms-muted));
+  --code-bg:                    #fff;
   --code-fg:                    hsl(var(--ms-foreground));
   --code-border:                hsl(var(--ms-border));
   --code-header-bg:             hsl(var(--ms-secondary));

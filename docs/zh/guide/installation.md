@@ -23,11 +23,14 @@ yarn add markstream-vue
 | 能力 | 需要的包 | 适用场景 |
 |------|---------|---------|
 | 轻量高亮代码块 | `stream-markdown` | 文档站、SSR、包体积敏感场景 |
-| 增强代码块与 diff | `stream-diffs` | 需要复制、预览、展开、字体控制、语法高亮和 File/Diff surface |
+| 增强代码块与 diff（推荐） | `stream-diffs` | 需要复制、预览、展开、字体控制、语法高亮和 File/Diff surface |
+| legacy Monaco 代码块 | `stream-monaco` | `stream-diffs` 未安装时的自动回退 |
 | Mermaid 图表 | `mermaid` | 渲染 `mermaid` fenced code block |
 | D2 图表 | `@terrastruct/d2` | 渲染 `d2` / `d2lang` fenced code block |
 | KaTeX 数学公式 | `katex` | 行内或块级公式 |
 | Infographic 图表 | `@antv/infographic` | 渲染 `infographic` fenced code block；还需要配置 `setInfographicLoader` |
+
+所有框架包（vue、vue2、react、svelte、angular）的增强代码块都通过同一个双运行时 loader 解析：优先 `stream-diffs`，未安装时自动回退 `stream-monaco`，两者都未安装则渲染普通 `<pre>`。安装其中一个即可，不需要同时装两个。
 
 ## 3. 常见安装配方
 

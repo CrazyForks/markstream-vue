@@ -5,7 +5,7 @@
 ## 快速概览
 
 - 增强模式（安装 `stream-diffs`）— 结束态 File/FileDiff surface，支持语法高亮与 diff 交互
-- 降级模式 — 未安装 `stream-diffs` 时会回退为纯 `<pre><code>` 渲染
+- 降级模式 — `stream-diffs` 与 `stream-monaco` 都未安装时回退为纯 `<pre><code>` 渲染
 - 如果你希望使用 Shiki，请使用 `MarkdownCodeBlockNode`（同伴依赖：`stream-markdown`）
 
 ## Props

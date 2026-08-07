@@ -361,8 +361,10 @@ function renderCodeBlock(
   if (customCodeBlock)
     return renderCustomCodeBlockComponent(customCodeBlock, node, key, ctx)
 
-  if (ctx.renderCodeBlocksAsPre)
-    return <PreCodeNode key={key} node={node} />
+  if (ctx.renderCodeBlocksAsPre) {
+    const extraProps = getCodeBlockExtraProps(ctx.codeBlockProps, { omit: ['langs'] })
+    return <PreCodeNode key={key} node={node} showLineNumbers={extraProps.showLineNumbers === true} />
+  }
 
   return (
     <CodeBlockNode

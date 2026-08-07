@@ -134,9 +134,11 @@ export default {
 
 ## Mermaid、KaTeX 和代码块
 
-只安装你需要的可选 peer：
+只安装你需要的可选 peer。增强代码块通过双运行时 loader 解析——`stream-diffs` 为推荐项，`stream-monaco` 自动回退，两者都未安装则渲染普通 `<pre>`：
 
 ```bash
+pnpm add stream-diffs
+# 或
 pnpm add stream-markdown
 ```
 

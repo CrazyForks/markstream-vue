@@ -10,6 +10,8 @@ pnpm add stream-diffs
 
 No worker plugin or package-specific CSS import is required.
 
+`stream-monaco` remains supported as an automatic fallback: if `stream-diffs` is not installed, the loader tries `stream-monaco` (the `stream-monaco/legacy` entry for the vue2 package) before giving up and rendering a plain `<pre>`. You can keep existing `stream-monaco` installs; you do not need both runtimes.
+
 ## Runtime boundary
 
 ```text

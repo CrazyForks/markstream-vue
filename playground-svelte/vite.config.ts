@@ -1,8 +1,6 @@
-import type { PluginOption } from 'vite'
 import path from 'node:path'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig } from 'vite'
-import monacoEditorPlugin from 'vite-plugin-monaco-editor-esm'
 
 export default defineConfig({
   base: './',
@@ -49,21 +47,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['mermaid'],
-    exclude: ['stream-monaco', 'stream-markdown-parser'],
+    exclude: ['stream-diffs', 'stream-markdown-parser'],
   },
   plugins: [
     svelte(),
-    monacoEditorPlugin({
-      languageWorkers: [
-        'editorWorkerService',
-        'typescript',
-        'css',
-        'html',
-        'json',
-      ],
-      customDistPath(_root, buildOutDir) {
-        return path.resolve(buildOutDir, 'monacoeditorwork')
-      },
-    }) as unknown as PluginOption,
   ],
 })

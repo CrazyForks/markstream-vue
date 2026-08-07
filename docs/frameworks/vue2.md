@@ -134,9 +134,11 @@ For high-frequency long streams, use the parser/node path described in the [Vue 
 
 ## Mermaid, KaTeX, and code blocks
 
-Install optional peers only for the blocks you render:
+Install optional peers only for the blocks you render. Enhanced code blocks use a dual-runtime loader — `stream-diffs` is recommended, `stream-monaco` is the automatic fallback, and a plain `<pre>` is rendered when neither is installed:
 
 ```bash
+pnpm add stream-diffs
+# or
 pnpm add stream-markdown
 ```
 

@@ -7,6 +7,7 @@ import MermaidWorker from 'markstream-react/workers/mermaidParser.worker?worker&
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ThinkingNode } from './components/ThinkingNode'
 import { streamContent } from './markdown'
+import { LineNumberHandoffCheck } from './shared/LineNumberHandoffCheck'
 import { PLAYGROUND_CUSTOM_HTML_TAGS, PLAYGROUND_CUSTOM_ID } from './shared/markstreamPlayground'
 import { MigrationDemoPage } from './shared/MigrationDemoPage'
 import { CUSTOM_STREAM_PRESET_ID, findMatchingStreamPreset, getStreamPreset, STREAM_PRESETS } from './shared/streamPresets'
@@ -240,6 +241,7 @@ export default function App() {
   const shouldShowSettingsPanel = !isCompactSettings || showSettings
   const isTestPage = currentPath === '/test'
   const isMigrationDemoPage = currentPath === '/migration-demo'
+  const isLineNumberHandoffCheck = currentPath === '/line-number-handoff-check'
 
   useChatAutoScroll(messagesRef, content)
 
@@ -365,13 +367,13 @@ export default function App() {
   }, [isCompactSettings])
 
   useEffect(() => {
-    if (isTestPage || isMigrationDemoPage)
+    if (isTestPage || isMigrationDemoPage || isLineNumberHandoffCheck)
       return
     startStreamSimulation()
     return () => {
       stopStreamSimulation()
     }
-  }, [isMigrationDemoPage, isTestPage, startStreamSimulation, stopStreamSimulation])
+  }, [isLineNumberHandoffCheck, isMigrationDemoPage, isTestPage, startStreamSimulation, stopStreamSimulation])
 
   const goToTest = () => {
     navigate('/test')
@@ -398,6 +400,9 @@ export default function App() {
 
   if (isTestPage)
     return <TestLab frameworkLabel="React 18" onGoHome={() => navigate('/')} />
+
+  if (isLineNumberHandoffCheck)
+    return <LineNumberHandoffCheck />
 
   if (isMigrationDemoPage) {
     return (

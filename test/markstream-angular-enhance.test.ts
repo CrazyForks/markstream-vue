@@ -125,7 +125,15 @@ describe('markstream-angular enhanceRenderedHtml', () => {
     `
 
     const shell = root.querySelector('.markstream-angular') as HTMLElement
-    const handle = await enhanceRenderedHtml(shell, { final: true, isDark: true, onCopy, showTooltips: true })
+    const handle = await enhanceRenderedHtml(shell, {
+      final: true,
+      isDark: true,
+      onCopy,
+      showTooltips: true,
+      monacoOptions: {
+        unsafeCSS: '[data-file] { --consumer-angular-gutter: 1; }',
+      },
+    })
 
     expect(shell.innerHTML).toContain('class="katex"')
     expect(shell.innerHTML).toContain('class="katex-display"')
@@ -138,11 +146,19 @@ describe('markstream-angular enhanceRenderedHtml', () => {
     expect(shell.innerHTML).toContain('data-d2="1"')
     expect(shell.innerHTML).toContain('markstream-angular-enhanced-block__action')
     expect(monacoCreateDiffEditor).toHaveBeenCalledWith(expect.any(HTMLElement), '{"version":"0.0.49"}', '{"version":"0.0.54-beta.1"}', 'json')
+    expect(monacoUseMonacoOptions[0]).toMatchObject({
+      disableFileHeader: true,
+    })
+    expect(monacoUseMonacoOptions[0]?.unsafeCSS).toContain('--diffs-min-number-column-width-default: 4ch !important')
+    expect(monacoUseMonacoOptions[0]?.unsafeCSS).toContain('--consumer-angular-gutter: 1')
+    expect(String(monacoUseMonacoOptions[0]?.unsafeCSS).indexOf('--diffs-min-number-column-width-default'))
+      .toBeLessThan(String(monacoUseMonacoOptions[0]?.unsafeCSS).indexOf('--consumer-angular-gutter'))
     expect(monacoUseMonacoOptions[1]).toMatchObject({
       fontSize: 15,
       lineHeight: 24,
       fontFamily: 'Menlo',
       padding: { top: 12, bottom: 12 },
+      disableFileHeader: true,
     })
 
     const copyButton = shell.querySelector<HTMLButtonElement>('.markstream-angular-enhanced-block__action')

@@ -37,16 +37,19 @@ Install only the heavy features you need:
 
 | Feature | Package |
 | --- | --- |
-| Monaco code blocks | `stream-monaco` |
+| Enhanced code blocks (recommended) | `stream-diffs` |
+| Monaco code blocks (automatic fallback) | `stream-monaco` |
 | Mermaid diagrams | `mermaid` |
 | KaTeX math | `katex` |
 | D2 diagrams | `@terrastruct/d2` |
 | AntV infographic blocks | `@antv/infographic` |
 
+Code blocks use a dual-runtime loader: `stream-diffs` is preferred (smaller, no `monaco-editor`), `stream-monaco` is the automatic fallback, and a plain `<pre>` is rendered when neither is installed. Install one of the two; you do not need both.
+
 Quick install:
 
 ```bash
-pnpm add stream-monaco mermaid katex @terrastruct/d2 @antv/infographic
+pnpm add stream-diffs mermaid katex @terrastruct/d2 @antv/infographic
 ```
 
 ## Optional Workers

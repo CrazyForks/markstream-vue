@@ -781,23 +781,22 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
       style={containerStyle}
     >
       {props.showHeader && (
-        <div
-          className="code-block-header flex justify-between items-center px-4 py-2.5 border-b border-gray-400/5"
-          style={{ color: 'var(--vscode-editor-foreground)', backgroundColor: 'var(--vscode-editor-background)' }}
-        >
-          <div className="flex items-center space-x-2">
+        <div className="code-block-header">
+          <div className="code-header-main">
             <span
               className="icon-slot h-4 w-4 flex-shrink-0"
               // language icons are trusted internal assets or user-supplied via resolver
               dangerouslySetInnerHTML={{ __html: languageIcon }}
             />
-            <span className="text-sm font-medium font-mono">{displayLanguage}</span>
+            <div className="code-header-copy">
+              <div className="code-header-title">{displayLanguage}</div>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="code-header-actions">
             {props.showCollapseButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-pressed={isCollapsed}
                 onClick={() => setIsCollapsed(v => !v)}
                 onMouseEnter={e => onBtnHover(e, isCollapsed ? (t('common.expand') || 'Expand') : (t('common.collapse') || 'Collapse'))}
@@ -814,7 +813,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                   width="1em"
                   height="1em"
                   viewBox="0 0 24 24"
-                  className="w-3 h-3"
+                  className="action-icon"
                 >
                   <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m9 18l6-6l-6-6" />
                 </svg>
@@ -825,7 +824,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
               <>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize <= 10}
                   onClick={decreaseCodeFont}
                   onMouseEnter={e => onBtnHover(e, t('common.decrease') || 'Decrease')}
@@ -841,14 +840,14 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14" />
                   </svg>
                 </button>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize === defaultFontSize}
                   onClick={resetCodeFont}
                   onMouseEnter={e => onBtnHover(e, t('common.reset') || 'Reset')}
@@ -864,7 +863,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                       <path d="M3 12a9 9 0 1 0 9-9a9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -874,7 +873,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                 </button>
                 <button
                   type="button"
-                  className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                  className="code-action-btn transition-colors"
                   disabled={fontSize >= 36}
                   onClick={increaseCodeFont}
                   onMouseEnter={e => onBtnHover(e, t('common.increase') || 'Increase')}
@@ -890,7 +889,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                     width="1em"
                     height="1em"
                     viewBox="0 0 24 24"
-                    className="w-3 h-3"
+                    className="action-icon"
                   >
                     <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14m-7-7v14" />
                   </svg>
@@ -901,7 +900,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
             {props.showCopyButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-label={copied ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy')}
                 onClick={copy}
                 onMouseEnter={e => onBtnHover(e, copied ? (t('common.copied') || 'Copied') : (t('common.copy') || 'Copy'))}
@@ -919,7 +918,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                           <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
@@ -936,7 +935,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6L9 17l-5-5" />
                       </svg>
@@ -947,7 +946,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
             {props.showExpandButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-pressed={isExpanded}
                 onClick={(e) => {
                   setIsExpanded(v => !v)
@@ -968,7 +967,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m14 10l7-7m-1 7h-6V4M3 21l7-7m-6 0h6v6" />
                       </svg>
@@ -982,7 +981,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                         width="1em"
                         height="1em"
                         viewBox="0 0 24 24"
-                        className="w-3 h-3"
+                        className="action-icon"
                       >
                         <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 3h6v6m0-6l-7 7M3 21l7-7m-1 7H3v-6" />
                       </svg>
@@ -993,7 +992,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
             {isPreviewable && props.showPreviewButton && (
               <button
                 type="button"
-                className="code-action-btn p-2 text-xs rounded-md transition-colors hover:bg-[var(--vscode-editor-selectionBackground)]"
+                className="code-action-btn transition-colors"
                 aria-label={t('common.preview') || 'Preview'}
                 onClick={previewCode}
                 onMouseEnter={e => onBtnHover(e, t('common.preview') || 'Preview')}
@@ -1009,7 +1008,7 @@ export function MarkdownCodeBlockNode(rawProps: MarkdownCodeBlockNodeProps) {
                   width="1em"
                   height="1em"
                   viewBox="0 0 24 24"
-                  className="w-3 h-3"
+                  className="action-icon"
                 >
                   <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                     <path d="M2.062 12.348a1 1 0 0 1 0-.696a10.75 10.75 0 0 1 19.876 0a1 1 0 0 1 0 .696a10.75 10.75 0 0 1-19.876 0" />

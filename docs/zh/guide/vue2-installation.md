@@ -185,10 +185,13 @@ markstream-vue2 通过可选的对等依赖支持各种功能。只安装你需�
 | 功能 | 所需包 | 安装命令 |
 |---------|------------------|-----------------|
 | Shiki 代码块（`MarkdownCodeBlockNode`） | `stream-markdown` | `pnpm add stream-markdown` |
-| Monaco 编辑器（完整代码块功能） | `stream-monaco` | `pnpm add stream-monaco` |
+| 增强代码块（推荐） | `stream-diffs` | `pnpm add stream-diffs` |
+| Monaco 编辑器代码块（自动回退） | `stream-monaco` | `pnpm add stream-monaco` |
 | Mermaid 图表 | `mermaid` | `pnpm add mermaid` |
 | D2 图表 | `@terrastruct/d2` | `pnpm add @terrastruct/d2` |
 | 数学公式渲染（KaTeX） | `katex` | `pnpm add katex` |
+
+增强代码块通过双运行时 loader 解析：优先 `stream-diffs`（更小，不依赖 `monaco-editor`），未安装时自动回退 `stream-monaco`（Webpack 4 / CJS 工具链走 `stream-monaco/legacy` 入口），两者都未安装则渲染普通 `<pre>`。安装其中一个即可，不需要同时装两个。
 
 ## Vue 2.6.x 设置
 
@@ -367,9 +370,9 @@ module.exports = {
 一次性启用所有功能：
 
 ```bash
-pnpm add stream-markdown stream-monaco mermaid @terrastruct/d2 katex
+pnpm add stream-markdown stream-diffs mermaid @terrastruct/d2 katex
 # 或
-npm install stream-markdown stream-monaco mermaid @terrastruct/d2 katex
+npm install stream-markdown stream-diffs mermaid @terrastruct/d2 katex
 ```
 
 ### 功能详情

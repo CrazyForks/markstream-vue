@@ -1,5 +1,6 @@
 import type { PreCodeNodeProps } from '../../types/component-props'
 import React, { useMemo } from 'react'
+import { readPositiveCodeMetric, resolveCodePadding, resolveCodeTypography } from './codeTypography'
 
 type DiffPreviewLineKind = 'context' | 'removed' | 'added' | 'hunk'
 
@@ -304,13 +305,73 @@ function getDisplayCode(node: PreCodeNodeProps['node']) {
   return (node as any)?.loading === true ? value : value.replace(/\r\n$|\n$|\r$/, '')
 }
 
-export function PreCodeNode({ node, className, diffInline, showLineNumbers, style }: PreCodeNodeProps) {
+function countCodeLines(code: string) {
+  let count = 1
+  for (let index = 0; index < code.length; index++) {
+    if (code[index] === '\n') {
+      count++
+    }
+    else if (code[index] === '\r') {
+      count++
+      if (code[index + 1] === '\n')
+        index++
+    }
+  }
+  return count
+}
+
+export function PreCodeNode({ node, className, diffInline, showLineNumbers, style, monacoOptions }: PreCodeNodeProps) {
   const normalizedLanguage = useMemo(() => normalizeLanguage((node as any)?.language), [node])
   const languageClass = `language-${normalizedLanguage}`
   const ariaLabel = normalizedLanguage ? `Code block: ${normalizedLanguage}` : 'Code block'
   const isDiffPreview = showLineNumbers === true && (node as any)?.diff === true
   const diffPanes = useMemo(() => isDiffPreview ? buildDiffPanes(node, diffInline === true, normalizedLanguage) : [], [diffInline, isDiffPreview, node, normalizedLanguage])
   const displayCode = useMemo(() => getDisplayCode(node), [node])
+
+  const codeLineCount = useMemo(() => countCodeLines(displayCode), [displayCode])
+  const lineNumbersText = useMemo(() => {
+    let text = ''
+    for (let line = 1; line <= codeLineCount; line++)
+      text += `${text ? '\n' : ''}${line}`
+    return text
+  }, [codeLineCount])
+
+  // Match vue3: when line numbers are shown for a non-diff block, size the
+  // gutter to the widest line number and let the code padding derive from it.
+  const lineNumberLayoutStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (showLineNumbers !== true || isDiffPreview)
+      return undefined
+    const width = `${Math.max(4, String(codeLineCount).length)}ch`
+    return {
+      '--markstream-pre-line-number-width': width,
+      '--markstream-code-padding-left': 'calc(var(--markstream-pre-line-number-padding-left, 2ch) + var(--markstream-pre-line-number-width, 2ch) + var(--markstream-pre-line-number-padding-right, 1ch) + var(--markstream-pre-line-number-separator-width, 2px) + var(--markstream-pre-line-number-gap-to-code, 1ch))',
+    } as React.CSSProperties
+  }, [isDiffPreview, showLineNumbers, codeLineCount])
+
+  const resolvedStyle = useMemo<React.CSSProperties>(() => {
+    const enhancedFallback = className?.split(/\s+/).includes('code-fallback-plain') === true
+    const typography = enhancedFallback
+      ? resolveCodeTypography(monacoOptions)
+      : {
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          fontSize: 16,
+          lineHeight: 28,
+        }
+    const padding = enhancedFallback
+      ? resolveCodePadding(monacoOptions, isDiffPreview ? 0 : 8)
+      : { top: 0, bottom: 0 }
+    return {
+      '--markstream-pre-line-number-top': `${padding.top}px`,
+      'fontFamily': typography.fontFamily,
+      'fontSize': `${typography.fontSize}px`,
+      'lineHeight': `${typography.lineHeight}px`,
+      'paddingBottom': `${padding.bottom}px`,
+      'paddingTop': `${padding.top}px`,
+      'tabSize': enhancedFallback ? (readPositiveCodeMetric(monacoOptions?.tabSize) ?? 4) : 2,
+      ...style,
+      ...lineNumberLayoutStyle,
+    } as React.CSSProperties
+  }, [className, isDiffPreview, lineNumberLayoutStyle, monacoOptions, style])
 
   return (
     <pre
@@ -321,7 +382,7 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
         isDiffPreview ? 'markstream-pre--diff-preview' : '',
         isDiffPreview && diffInline ? 'markstream-pre--diff-inline' : '',
       ].filter(Boolean).join(' ')}
-      style={style}
+      style={resolvedStyle}
       aria-busy={(node as any)?.loading === true}
       aria-label={ariaLabel}
       data-language={normalizedLanguage}
@@ -347,7 +408,16 @@ export function PreCodeNode({ node, className, diffInline, showLineNumbers, styl
               ))}
             </code>
           )
-        : <code translate="no">{displayCode}</code>}
+        : (
+            <>
+              {showLineNumbers && (
+                <span className="markstream-pre__line-numbers" aria-hidden="true">
+                  <span className="markstream-pre__line-numbers-text">{lineNumbersText}</span>
+                </span>
+              )}
+              <code translate="no" className="markstream-pre__code">{displayCode}</code>
+            </>
+          )}
     </pre>
   )
 }
