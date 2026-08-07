@@ -36,6 +36,13 @@ describe('markstream-angular api parity helpers', () => {
     expect(getLanguageIcon('unknown-language')).toContain('fill="#ff7043"')
   })
 
+  it('keeps the mermaid icon distinct from the markdown icon', () => {
+    const markdown = getLanguageIcon('markdown')
+    const mermaid = getLanguageIcon('mermaid')
+    expect(mermaid).not.toBe(markdown)
+    expect(mermaid).toContain('stroke="#26c6da"')
+  })
+
   it('merges global and scoped custom components like react/vue2', () => {
     const GlobalCode = class {}
     const ScopedThinking = class {}
