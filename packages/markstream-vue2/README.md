@@ -185,6 +185,60 @@ Notes:
 - Use kebab-case in templates: `mermaid-props`, `d2-props`, `infographic-props`.
 - These props are forwarded to the built-in Mermaid / D2 / Infographic blocks and to custom `mermaid` / `d2` / `infographic` overrides registered with `setCustomComponents(...)`.
 
+## Enhanced Code Blocks
+
+Code blocks use a dual-runtime loader across all Markstream packages: `stream-diffs` is preferred (smaller, no `monaco-editor`), `stream-monaco` is the automatic fallback (through the `stream-monaco/legacy` entry for Webpack 4 / CJS toolchains), and a plain `<pre>` is rendered when neither is installed.
+
+Install the recommended runtime:
+
+```bash
+pnpm add stream-diffs
+# or, to keep the legacy Monaco surface as the fallback:
+pnpm add stream-monaco
+```
+
+`CodeBlockNode` renders a single code block with the header, toolbar, and a `stream-diffs` File / FileDiff surface:
+
+```vue
+<script lang="ts">
+import type { CodeBlockMonacoOptions } from 'markstream-vue2'
+import { CodeBlockNode } from 'markstream-vue2'
+import Vue from 'vue'
+
+export default Vue.extend({
+  components: { CodeBlockNode },
+  data() {
+    return {
+      node: {
+        type: 'code_block',
+        language: 'ts',
+        code: 'const answer = 42',
+        raw: 'const answer = 42',
+      },
+      // fontSize / lineHeight / tabSize also drive the streaming <pre> fallback
+      // so the enhanced surface swaps in without a visual jump.
+      monacoOptions: {
+        fontSize: 14,
+        lineHeight: 21,
+        tabSize: 4,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        wordWrap: 'off',
+        theme: 'vitesse-dark',
+        renderSideBySide: true,
+        MAX_HEIGHT: 640,
+      } as CodeBlockMonacoOptions,
+    }
+  },
+})
+</script>
+
+<template>
+  <CodeBlockNode :node="node" :monaco-options="monacoOptions" />
+</template>
+```
+
+Component props (kebab-case in templates): `is-dark`, `show-line-numbers`, `show-header`, and `monaco-options`. `monacoOptions` also covers diff blocks (`renderSideBySide`, `diffHunkActionsOnHover`, `onDiffHunkAction`). Vue 2.6 apps need `@vue/composition-api`; see the Webpack 4 notes above if you use Vue CLI 4.
+
 ## Language-specific code block overrides
 
 You can also register a renderer for one fenced language directly:
