@@ -46,6 +46,16 @@ export async function getUseMonaco() {
     if (typeof resolved?.useMonaco === 'function') {
       mod = resolved
       await preload(mod)
+      // Warm up the tokenizer stack like the legacy path. stream-diffs does
+      // not export getOrCreateHighlighter today, so warmupShikiTokenizer
+      // short-circuits to true; the call keeps both runtime paths aligned if
+      // stream-diffs later gains the same stack.
+      const ok = await warmupShikiTokenizer(mod)
+      if (!ok) {
+        mod = null
+        importAttempted = true
+        return null
+      }
       return mod
     }
   }
