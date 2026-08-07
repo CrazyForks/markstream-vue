@@ -113,7 +113,7 @@ Keep browser-only optional peers such as Mermaid, KaTeX, and Monaco in client co
 - **Server-only**: use `markstream-react/server` when no client component boundary is needed
 - **Live streaming**: use root `markstream-react` inside a `'use client'` component
 - **CSS order**: import `markstream-react/index.css` in your app layout or component entry
-- **Optional peers**: Mermaid, KaTeX, Monaco are optional — only install what your AI output needs
+- **Optional peers**: Mermaid, KaTeX, `stream-diffs` (enhanced code blocks), Monaco (fallback) are optional — only install what your AI output needs
 
 ## Full guides
 

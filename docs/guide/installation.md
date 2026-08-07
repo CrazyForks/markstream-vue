@@ -31,11 +31,14 @@ Then continue with [Quick Start](/guide/quick-start) if you only need basic Mark
 | Capability | Packages | When you need it |
 |------------|----------|------------------|
 | Lightweight highlighted code blocks | `stream-markdown` | Docs sites, SSR, lower bundle budgets |
-| Enhanced code blocks and diffs | `stream-diffs` | Copy/preview/expand controls, syntax highlighting, and File/Diff surfaces |
+| Enhanced code blocks and diffs (recommended) | `stream-diffs` | Copy/preview/expand controls, syntax highlighting, and File/Diff surfaces |
+| Legacy Monaco code blocks | `stream-monaco` | Automatic fallback when `stream-diffs` is absent |
 | Mermaid diagrams | `mermaid` | Fenced `mermaid` blocks |
 | D2 diagrams | `@terrastruct/d2` | Fenced `d2` or `d2lang` blocks |
 | KaTeX math | `katex` | Inline or block math rendering |
 | Infographic blocks | `@antv/infographic` | Fenced `infographic` blocks; also configure `setInfographicLoader` |
+
+Enhanced code blocks resolve through a dual-runtime loader across all framework packages (vue, vue2, react, svelte, angular): `stream-diffs` is preferred, `stream-monaco` is the automatic fallback, and a plain `<pre>` is rendered when neither is installed. Install one of the two; you do not need both.
 
 ## 3. Common install recipes
 

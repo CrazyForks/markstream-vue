@@ -24,6 +24,57 @@ npm i stream-diffs
 - `CodeBlockShell` owns the title and action bar. The inner `data-diffs-header` is disabled so File surfaces do not render a second header.
 - No worker plugin or extra CSS import is required for this integration. See also: [/guide/monaco](/guide/monaco) for runtime and preload details.
 
+### stream-monaco fallback (legacy)
+
+The enhanced-code-block loader prefers `stream-diffs`, then falls back to `stream-monaco`, then to a plain `<pre>`:
+
+```text
+stream-diffs installed   → stream-diffs File / FileDiff surface (recommended)
+stream-monaco installed  → legacy Monaco editor surface (automatic fallback)
+neither installed        → plain <pre><code> rendering
+```
+
+You never need both. Installing `stream-monaco` keeps existing Monaco setups working without code changes; the loader resolves it automatically when `stream-diffs` is absent. This dual-runtime loader is identical across the vue, vue2, react, svelte and angular packages.
+
+### Configuration
+
+Code block options are passed through `CodeBlockMonacoOptions` — the public name is kept for compatibility, but the values are forwarded to the `stream-diffs` adapter. They also configure the pre-fallback surface (font, line height, tab size, padding) so the two surfaces line up on handoff.
+
+Use `code-block-monaco-options` on `MarkdownRender`, or `monaco-options` on `CodeBlockNode`:
+
+```vue twoslash
+<script setup lang="ts">
+import type { CodeBlockMonacoOptions, CodeBlockNodeProps } from 'markstream-vue'
+import { CodeBlockNode } from 'markstream-vue'
+
+const node = {
+  type: 'code_block',
+  language: 'ts',
+  code: 'const answer = 42',
+  raw: 'const answer = 42',
+} satisfies CodeBlockNodeProps['node']
+
+// fontSize / lineHeight / tabSize also drive the streaming <pre> fallback so
+// the enhanced surface swaps in without a visual jump.
+const codeBlockMonacoOptions = {
+  fontSize: 14,
+  lineHeight: 21,
+  tabSize: 4,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  wordWrap: 'off',
+  theme: 'vitesse-dark',
+  renderSideBySide: true,
+  MAX_HEIGHT: 640,
+} satisfies CodeBlockMonacoOptions
+</script>
+
+<template>
+  <CodeBlockNode :node="node" :monaco-options="codeBlockMonacoOptions" />
+</template>
+```
+
+See [/guide/monaco](/guide/monaco) for the full option list, diff interactions, and optional preload.
+
 ### Theming the fallback surface
 
 The stable `PreCodeNode` fallback (shown while content streams, and used when no enhanced runtime is installed) is themed through the shared `--code-*` tokens — `--code-bg`, `--code-fg`, `--code-border`, `--code-header-bg`, `--code-action-fg`, `--code-line-number`, etc. These tokens are the single theming channel across all framework adapters (vue / vue2 / react / svelte / angular / octane): override them to restyle the fallback surface. The enhanced editor surface is painted by its own runtime theme and is not affected by `--code-*` overrides.
@@ -75,7 +126,7 @@ Key pitfalls and fixes (see `playground-vue2-cli`):
 
 ## Fallback
 
-If you don't install either optional package the renderer falls back to a simple `pre`/`code` representation.
+If you don't install `stream-diffs` or `stream-monaco` the code block loader returns `null` and the renderer falls back to a simple `pre`/`code` representation. The fallback still shows line numbers and follows the `--code-*` theming tokens.
 
 ## Links & further reading
 

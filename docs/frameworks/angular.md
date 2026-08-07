@@ -113,7 +113,8 @@ export class ChatMessageComponent {
 | --- | --- |
 | `mermaid` | Mermaid diagrams |
 | `katex` | Inline and block math rendering |
-| `stream-monaco` | Monaco-powered code blocks |
+| `stream-diffs` | Enhanced code blocks (recommended; smaller runtime, no `monaco-editor`) |
+| `stream-monaco` | Monaco-powered code blocks (automatic fallback when `stream-diffs` is absent) |
 | `@terrastruct/d2` | D2 diagrams |
 | `@antv/infographic` | Infographic blocks |
 

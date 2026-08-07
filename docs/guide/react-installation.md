@@ -27,10 +27,13 @@ markstream-react supports various features through optional peer dependencies. I
 | Feature | Required Packages | Install Command |
 |---------|------------------|-----------------|
 | Shiki code blocks (`MarkdownCodeBlockNode`) | `stream-markdown` | `pnpm add stream-markdown` |
-| Monaco Editor (full code block features) | `stream-monaco` | `pnpm add stream-monaco` |
+| Enhanced code blocks (recommended) | `stream-diffs` | `pnpm add stream-diffs` |
+| Monaco Editor code blocks (automatic fallback) | `stream-monaco` | `pnpm add stream-monaco` |
 | Mermaid Diagrams | `mermaid` | `pnpm add mermaid` |
 | D2 Diagrams | `@terrastruct/d2` | `pnpm add @terrastruct/d2` |
 | Math Rendering (KaTeX) | `katex` | `pnpm add katex` |
+
+Enhanced code blocks resolve through a dual-runtime loader: `stream-diffs` is preferred (smaller, no `monaco-editor`), `stream-monaco` is the automatic fallback, and a plain `<pre>` is rendered when neither is installed. Install one of the two; you do not need both.
 
 ## Optional: off-thread workers in Vite / Vite-compatible bundlers
 
@@ -86,7 +89,7 @@ This approach ensures that Tailwind includes all the utility classes used by mar
 To enable all features at once:
 
 ```bash
-pnpm add stream-markdown stream-monaco mermaid @terrastruct/d2 katex
+pnpm add stream-markdown stream-diffs mermaid @terrastruct/d2 katex
 # or
 npm install stream-markdown stream-monaco mermaid @terrastruct/d2 katex
 ```

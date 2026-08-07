@@ -185,10 +185,13 @@ markstream-vue2 supports various features through optional peer dependencies. In
 | Feature | Required Packages | Install Command |
 |---------|------------------|-----------------|
 | Shiki code blocks (`MarkdownCodeBlockNode`) | `stream-markdown` | `pnpm add stream-markdown` |
-| Monaco Editor (full code block features) | `stream-monaco` | `pnpm add stream-monaco` |
+| Enhanced code blocks (recommended) | `stream-diffs` | `pnpm add stream-diffs` |
+| Monaco Editor code blocks (automatic fallback) | `stream-monaco` | `pnpm add stream-monaco` |
 | Mermaid Diagrams | `mermaid` | `pnpm add mermaid` |
 | D2 Diagrams | `@terrastruct/d2` | `pnpm add @terrastruct/d2` |
 | Math Rendering (KaTeX) | `katex` | `pnpm add katex` |
+
+Enhanced code blocks resolve through a dual-runtime loader: `stream-diffs` is preferred (smaller, no `monaco-editor`), `stream-monaco` is the automatic fallback (through the `stream-monaco/legacy` entry for Webpack 4 / CJS toolchains), and a plain `<pre>` is rendered when neither is installed. Install one of the two; you do not need both.
 
 ## Vue 2.6.x Setup
 
@@ -367,9 +370,9 @@ Fix:
 To enable all features at once:
 
 ```bash
-pnpm add stream-markdown stream-monaco mermaid @terrastruct/d2 katex
+pnpm add stream-markdown stream-diffs mermaid @terrastruct/d2 katex
 # or
-npm install stream-markdown stream-monaco mermaid @terrastruct/d2 katex
+npm install stream-markdown stream-diffs mermaid @terrastruct/d2 katex
 ```
 
 ### Feature Details

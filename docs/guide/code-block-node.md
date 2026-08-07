@@ -4,7 +4,7 @@
 
 ## Quick summary
 - Enhanced mode (install `stream-diffs`) — finalized File/FileDiff surface with syntax highlighting and diff interactions
-- Fallback — plain `<pre><code>` when `stream-diffs` is not installed
+- Fallback — plain `<pre><code>` when neither `stream-diffs` nor `stream-monaco` is installed
 - If you want Shiki-based highlighting, use `MarkdownCodeBlockNode` (peer: `stream-markdown`)
 
 ## Props
