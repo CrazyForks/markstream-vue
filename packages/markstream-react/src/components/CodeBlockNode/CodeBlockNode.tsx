@@ -593,60 +593,6 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
     setEditorCreated(false)
   }, [clearEditorHeightSyncBindings])
 
-  const syncEditorCssVars = useCallback(() => {
-    const editorEl = editorHostRef.current
-    const rootEl = containerRef.current
-    if (!editorEl || !rootEl)
-      return
-
-    // Match Vue 3: the shell and visible Pre stay on --code-bg/--code-fg.
-    // Runtime theme variables belong to the editor layer only.
-    rootEl.style.removeProperty('--vscode-editor-foreground')
-    rootEl.style.removeProperty('--vscode-editor-background')
-    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
-    if (node.diff) {
-      editorEl.style.removeProperty('--vscode-editor-foreground')
-      editorEl.style.removeProperty('--vscode-editor-background')
-      editorEl.style.removeProperty('--vscode-editor-selectionBackground')
-      return
-    }
-
-    const src = (editorEl.querySelector('.monaco-editor') as HTMLElement | null) ?? editorEl
-    try {
-      const styles = typeof window !== 'undefined' && window.getComputedStyle
-        ? window.getComputedStyle(src)
-        : null
-      const fg = String(styles?.getPropertyValue('--vscode-editor-foreground') ?? '').trim()
-        || String((styles as any)?.color ?? '').trim()
-      const themeBg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
-      const computedBg = String((styles as any)?.backgroundColor ?? '').trim()
-      const bg = !isTransparentColor(themeBg)
-        ? themeBg
-        : (!isTransparentColor(computedBg) ? computedBg : '')
-      const sel = String(styles?.getPropertyValue('--vscode-editor-selectionBackground') ?? '').trim()
-      const isPlainTextLanguage = resolveMonacoLanguageId(String(node.language || codeLanguage || detectedLanguage || 'plaintext')) === 'plaintext'
-      if (shouldPreferPlainTextFallbackSurface(bg, fg, isPlainTextLanguage, rootEl.classList.contains('is-dark'))) {
-        editorEl.style.removeProperty('--vscode-editor-foreground')
-        editorEl.style.removeProperty('--vscode-editor-background')
-        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
-        return
-      }
-      if (fg)
-        editorEl.style.setProperty('--vscode-editor-foreground', fg)
-      else
-        editorEl.style.removeProperty('--vscode-editor-foreground')
-      if (bg)
-        editorEl.style.setProperty('--vscode-editor-background', bg)
-      else
-        editorEl.style.removeProperty('--vscode-editor-background')
-      if (sel)
-        editorEl.style.setProperty('--vscode-editor-selectionBackground', sel)
-      else
-        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
-    }
-    catch {}
-  }, [codeLanguage, detectedLanguage, node.diff, node.language])
-
   const preferredTheme = useMemo(() => (isDark ? darkTheme : lightTheme), [darkTheme, isDark, lightTheme])
 
   const resolveRequestedTheme = useCallback(() => {
@@ -748,6 +694,72 @@ export function CodeBlockNode(rawProps: CodeBlockNodeProps & CodeBlockNodeReactE
       style.fontFamily = preFallbackMetrics.fontFamily
     return style
   }, [preFallbackMetrics])
+
+  const syncEditorCssVars = useCallback(() => {
+    const editorEl = editorHostRef.current
+    const rootEl = containerRef.current
+    if (!editorEl || !rootEl)
+      return
+
+    // Match Vue 3: the shell and visible Pre stay on --code-bg/--code-fg.
+    // Runtime theme variables belong to the editor layer only.
+    rootEl.style.removeProperty('--vscode-editor-foreground')
+    rootEl.style.removeProperty('--vscode-editor-background')
+    rootEl.style.removeProperty('--vscode-editor-selectionBackground')
+    // Align the enhanced surface with the pre-fallback geometry. stream-diffs /
+    // pierre honor these CSS variables on the editor host (custom properties
+    // inherit across the pierre shadow boundary):
+    // - `--diffs-tab-size`: fallback defaults to 4, pierre defaults to 2.
+    // - `--diffs-gap-block`: only set when the consumer explicitly configures
+    //   padding — the default 8px gap already matches the fallback.
+    editorEl.style.setProperty('--diffs-tab-size', String(preFallbackMetrics.tabSize))
+    const configuredPadding = (resolvedMonacoOptions as any)?.padding
+    if (configuredPadding && typeof configuredPadding === 'object')
+      editorEl.style.setProperty('--diffs-gap-block', `${preFallbackMetrics.paddingTop}px`)
+    else
+      editorEl.style.removeProperty('--diffs-gap-block')
+    if (node.diff) {
+      editorEl.style.removeProperty('--vscode-editor-foreground')
+      editorEl.style.removeProperty('--vscode-editor-background')
+      editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+      return
+    }
+
+    const src = (editorEl.querySelector('.monaco-editor') as HTMLElement | null) ?? editorEl
+    try {
+      const styles = typeof window !== 'undefined' && window.getComputedStyle
+        ? window.getComputedStyle(src)
+        : null
+      const fg = String(styles?.getPropertyValue('--vscode-editor-foreground') ?? '').trim()
+        || String((styles as any)?.color ?? '').trim()
+      const themeBg = String(styles?.getPropertyValue('--vscode-editor-background') ?? '').trim()
+      const computedBg = String((styles as any)?.backgroundColor ?? '').trim()
+      const bg = !isTransparentColor(themeBg)
+        ? themeBg
+        : (!isTransparentColor(computedBg) ? computedBg : '')
+      const sel = String(styles?.getPropertyValue('--vscode-editor-selectionBackground') ?? '').trim()
+      const isPlainTextLanguage = resolveMonacoLanguageId(String(node.language || codeLanguage || detectedLanguage || 'plaintext')) === 'plaintext'
+      if (shouldPreferPlainTextFallbackSurface(bg, fg, isPlainTextLanguage, rootEl.classList.contains('is-dark'))) {
+        editorEl.style.removeProperty('--vscode-editor-foreground')
+        editorEl.style.removeProperty('--vscode-editor-background')
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+        return
+      }
+      if (fg)
+        editorEl.style.setProperty('--vscode-editor-foreground', fg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-foreground')
+      if (bg)
+        editorEl.style.setProperty('--vscode-editor-background', bg)
+      else
+        editorEl.style.removeProperty('--vscode-editor-background')
+      if (sel)
+        editorEl.style.setProperty('--vscode-editor-selectionBackground', sel)
+      else
+        editorEl.style.removeProperty('--vscode-editor-selectionBackground')
+    }
+    catch {}
+  }, [codeLanguage, detectedLanguage, node.diff, node.language, preFallbackMetrics, resolvedMonacoOptions])
 
   const buildRuntimeMonacoOptions = useCallback(() => {
     const nextOptions = {
@@ -1115,7 +1127,17 @@ ${configuredUnsafeCSS}`.trim()
         syncEditorCssVars()
         if (!expanded && !collapsed)
           scheduleEditorHeightSync(false)
-        const visuallyReady = await waitForEditorVisualReady(el, helpers.whenVisualReady)
+        // Time-box the handoff: if visual readiness can't be confirmed (e.g.
+        // stream-monaco fallback inside a hidden/zero-size container, or a
+        // runtime that never resolves whenVisualReady), reveal the live editor
+        // anyway after a short grace period instead of stranding the block in
+        // the pre-fallback forever.
+        const visuallyReady = await Promise.race([
+          waitForEditorVisualReady(el, helpers.whenVisualReady),
+          new Promise<boolean>((resolve) => {
+            window.setTimeout(() => resolve(true), 1500)
+          }),
+        ])
         if (editorLifecycleIdRef.current !== creationId)
           return
         if (!visuallyReady)

@@ -377,7 +377,9 @@ ${configuredUnsafeCSS}`.trim()
       fontFamily: getCodeFontFamily(),
       fontSize: codeFontSize,
       lineHeight: getCodeLineHeight(),
-      lineNumbers: showLineNumbers === false ? 'off' : 'on',
+      // stream-diffs expects a boolean (`disableLineNumbers: options.lineNumbers === false`);
+      // passing 'off'/'on' strings would always be truthy and defeat showLineNumbers={false}.
+      lineNumbers: showLineNumbers !== false,
       padding,
       unsafeCSS,
       // The component owns the streaming fallback and file header. Initialize
@@ -593,7 +595,13 @@ ${configuredUnsafeCSS}`.trim()
 
   async function prepareEditorHandoff(kind: 'single' | 'diff', creationId: number) {
     await tick()
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    // Time-box the handoff: if visual readiness can't be confirmed (e.g. a
+    // hidden/zero-size container), reveal the editor anyway once its DOM is
+    // mounted so the block never strands in the pre-fallback forever.
+    const deadline = Date.now() + 1500
+    let attempt = 0
+    while (Date.now() < deadline && attempt < 30) {
+      attempt += 1
       if (!mounted || !editorHost || lifecycleId !== creationId)
         return false
       syncEditorHostHeight(true)
@@ -604,7 +612,7 @@ ${configuredUnsafeCSS}`.trim()
         return isEditorVisuallyReady(kind)
       }
     }
-    return false
+    return !!(mounted && editorHost && lifecycleId === creationId && hasRenderedEditorDom(kind))
   }
 
   async function recreateEditor(kind: 'single' | 'diff') {
@@ -743,7 +751,23 @@ ${configuredUnsafeCSS}`.trim()
   function applyEditorOptions() {
     const target = diff ? helpers?.getDiffEditorView?.() : helpers?.getEditorView?.()
     target?.updateOptions?.({ fontSize: codeFontSize, automaticLayout: false })
+    syncEditorGeometryVars()
     scheduleEditorHeightSync()
+  }
+
+  // Align the enhanced surface with the pre-fallback geometry (see vue3):
+  // stream-diffs/pierre honor these CSS variables on the editor host.
+  function syncEditorGeometryVars() {
+    if (!editorHost)
+      return
+    const tabSize = readPositiveMetric(mergedMonacoOptions.tabSize) ?? 4
+    editorHost.style.setProperty('--diffs-tab-size', String(tabSize))
+    const rawPadding = mergedMonacoOptions.padding
+    const hasConfiguredPadding = Boolean(rawPadding && typeof rawPadding === 'object')
+    if (hasConfiguredPadding)
+      editorHost.style.setProperty('--diffs-gap-block', `${getCodePadding().top}px`)
+    else
+      editorHost.style.removeProperty('--diffs-gap-block')
   }
 
   function getMaxHeightValue() {

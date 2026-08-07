@@ -772,6 +772,7 @@ ${configuredUnsafeCSS}`.trim(),
         this.resolvedCode,
         this.monacoLanguage,
       ))
+      this.syncEditorGeometryVars()
       return
     }
 
@@ -780,6 +781,26 @@ ${configuredUnsafeCSS}`.trim(),
       this.resolvedCode,
       this.monacoLanguage,
     ))
+    this.syncEditorGeometryVars()
+  }
+
+  // Align the enhanced surface's vertical gap with the pre-fallback padding.
+  // stream-diffs/pierre honor `--diffs-gap-block` on the editor host (custom
+  // properties inherit across the pierre shadow boundary). Only set it when
+  // padding is present; the default 8px gap already matches the fallback.
+  private syncEditorGeometryVars() {
+    const host = this.editorHost?.nativeElement
+    if (!host)
+      return
+    const rawPadding = this.resolvedMonacoOptions.padding
+    const hasConfiguredPadding = Boolean(rawPadding && typeof rawPadding === 'object')
+    if (hasConfiguredPadding) {
+      const top = readPositiveCodeMetric((rawPadding as Record<string, unknown>).top) ?? 0
+      host.style.setProperty('--diffs-gap-block', `${top}px`)
+    }
+    else {
+      host.style.removeProperty('--diffs-gap-block')
+    }
   }
 
   private async updateEditor() {
@@ -833,7 +854,13 @@ ${configuredUnsafeCSS}`.trim(),
   }
 
   private async prepareEditorHandoff(kind: 'single' | 'diff', creationId: number) {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    // Time-box the handoff: if visual readiness can't be confirmed (e.g. a
+    // hidden/zero-size container), reveal the editor anyway once its DOM is
+    // mounted so the block never strands in the pre-fallback forever.
+    const deadline = Date.now() + 1500
+    let attempt = 0
+    while (Date.now() < deadline && attempt < 30) {
+      attempt += 1
       if (this.destroyed || creationId !== this.lifecycleId)
         return false
       this.applyEditorHeight(true)
@@ -844,7 +871,7 @@ ${configuredUnsafeCSS}`.trim(),
         return this.isEditorVisuallyReady(kind)
       }
     }
-    return false
+    return !this.destroyed && creationId === this.lifecycleId && this.hasRenderedEditorDom(kind)
   }
 
   private nextAnimationFrame() {

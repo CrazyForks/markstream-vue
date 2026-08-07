@@ -676,6 +676,20 @@ function syncEditorCssVars() {
   rootEl.style.removeProperty('--vscode-editor-selectionBackground')
 
   const targetEl = editorEl
+  // Align the enhanced surface with the pre-fallback geometry (see vue3):
+  // stream-diffs/pierre honor these CSS variables on the editor host (custom
+  // properties inherit across the pierre shadow boundary).
+  const runtimeMetrics = resolvedMonacoOptions.value
+  const tabSize = readPositiveNumber(runtimeMetrics?.tabSize) ?? 4
+  targetEl.style.setProperty('--diffs-tab-size', String(tabSize))
+  const configuredPadding = runtimeMetrics?.padding
+  if (configuredPadding && typeof configuredPadding === 'object') {
+    const paddingTop = readPositiveNumber(configuredPadding.top) ?? 0
+    targetEl.style.setProperty('--diffs-gap-block', `${paddingTop}px`)
+  }
+  else {
+    targetEl.style.removeProperty('--diffs-gap-block')
+  }
   if (isDiff.value) {
     targetEl.style.removeProperty('--vscode-editor-foreground')
     targetEl.style.removeProperty('--vscode-editor-background')
