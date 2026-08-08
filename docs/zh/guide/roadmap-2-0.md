@@ -10,16 +10,16 @@ description: markstream-vue 2.0.0 路线图与任务清单。跟踪 2.0 的破�
 
 2.0 的核心破坏性变更：移除基于 Monaco 的代码块 API 与基于 Shiki 的 `stream-markdown` 渲染器。代码块只由 `stream-diffs` 渲染（未安装可选 peer 时回退为普通 `<pre>`）。
 
-跟踪于 [issue #615](https://github.com/Simon-He95/markstream-vue/issues/615) · 在分支 `2.0.0-remove-monaco` 上实现。
+跟踪于 [issue #615](https://github.com/Simon-He95/markstream-vue/issues/615)。实现在分支 `2.0.0-remove-monaco` 上，尚未合并到 `main`；请通过 PR 合并后再关闭本清单。本页中「— `2.0.0-remove-monaco` 分支」表示该项在该分支上完成。
 
-- [x] 移除 `monacoOptions` / `codeBlockMonacoOptions` 与全部 `CodeBlockMonaco*` 参数/API（无替代；diff 选项回退 stream-diffs 内置默认值）— `72992db60`
-- [x] 删除 `stream-markdown` 的 `MarkdownCodeBlockNode` 组件及其样式 — `72992db60`
-- [x] `codeRenderer` 取值 `'monaco'` → `'stream-diffs'`；删除 `'shiki'` / `'markdown'` 渲染器类型 — `72992db60`
-- [x] 公共标识符去 Monaco 命名（`CodeBlockTheme`、`resolveLanguageId`、`getStreamDiffsRuntime`）— `72992db60`
-- [x] vue2 / react / svelte / angular / octane 迁移到仅 stream-diffs — `72992db60`
-- [x] 更新测试与快照；全量测试通过（313 文件 / 2684 用例）— `72992db60`
-- [x] 清理 playground（依赖、vite 配置、sandbox 页面）— `72992db60`
-- [x] 更新文档（en + zh）、LLM 文档、包描述 — `768fa2220`
+- [x] 移除 `monacoOptions` / `codeBlockMonacoOptions` 与全部 `CodeBlockMonaco*` 参数/API（无替代；diff 选项回退 stream-diffs 内置默认值）— `2.0.0-remove-monaco` 分支
+- [x] 删除 `stream-markdown` 的 `MarkdownCodeBlockNode` 组件及其样式 — `2.0.0-remove-monaco` 分支
+- [x] `codeRenderer` 取值 `'monaco'` → `'stream-diffs'`；删除 `'shiki'` / `'markdown'` 渲染器类型 — `2.0.0-remove-monaco` 分支
+- [x] 公共标识符去 Monaco 命名（`CodeBlockTheme`、`resolveLanguageId`、`getStreamDiffsRuntime`）— `2.0.0-remove-monaco` 分支
+- [x] vue2 / react / svelte / angular / octane 迁移到仅 stream-diffs — `2.0.0-remove-monaco` 分支
+- [x] 更新测试与快照；全量测试通过（313 文件 / 2684 用例）— `2.0.0-remove-monaco` 分支
+- [x] 清理 playground（依赖、vite 配置、sandbox 页面）— `2.0.0-remove-monaco` 分支
+- [x] 更新文档（en + zh）、LLM 文档、包描述 — `2.0.0-remove-monaco` 分支
 
 ## 目标 2：2.0.0 发布验证
 

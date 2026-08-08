@@ -10,16 +10,16 @@ description: markstream-vue 2.0.0 roadmap and task checklist. Tracks the breakin
 
 The 2.0 headline breaking change: the Monaco-based code block API and the Shiki-based `stream-markdown` renderer are removed. Code blocks are rendered by `stream-diffs` only (or a plain `<pre>` fallback when the optional peer is absent).
 
-Tracked in [issue #615](https://github.com/Simon-He95/markstream-vue/issues/615) · implemented on branch `2.0.0-remove-monaco`.
+Tracked in [issue #615](https://github.com/Simon-He95/markstream-vue/issues/615). The implementation lives on branch `2.0.0-remove-monaco` and has not been merged into `main` yet; merge it via PR before closing the checklist. In this page, "— `2.0.0-remove-monaco` 分支" marks items completed on that branch.
 
-- [x] Remove `monacoOptions` / `codeBlockMonacoOptions` and all `CodeBlockMonaco*` params/APIs (no replacement; diff options fall back to stream-diffs built-in defaults) — `72992db60`
-- [x] Delete the `stream-markdown` `MarkdownCodeBlockNode` component and its styles — `72992db60`
-- [x] Rename `codeRenderer` value `'monaco'` → `'stream-diffs'`; drop the `'shiki'` / `'markdown'` renderer kinds — `72992db60`
-- [x] Rename public identifiers to drop Monaco naming (`CodeBlockTheme`, `resolveLanguageId`, `getStreamDiffsRuntime`) — `72992db60`
-- [x] Migrate vue2 / react / svelte / angular / octane to stream-diffs only — `72992db60`
-- [x] Update tests and snapshots; full suite green (313 files / 2684 tests) — `72992db60`
-- [x] Clean playgrounds (deps, vite config, sandbox pages) — `72992db60`
-- [x] Update documentation (en + zh), LLM docs, package descriptions — `768fa2220`
+- [x] Remove `monacoOptions` / `codeBlockMonacoOptions` and all `CodeBlockMonaco*` params/APIs (no replacement; diff options fall back to stream-diffs built-in defaults) — `2.0.0-remove-monaco` 分支
+- [x] Delete the `stream-markdown` `MarkdownCodeBlockNode` component and its styles — `2.0.0-remove-monaco` 分支
+- [x] Rename `codeRenderer` value `'monaco'` → `'stream-diffs'`; drop the `'shiki'` / `'markdown'` renderer kinds — `2.0.0-remove-monaco` 分支
+- [x] Rename public identifiers to drop Monaco naming (`CodeBlockTheme`, `resolveLanguageId`, `getStreamDiffsRuntime`) — `2.0.0-remove-monaco` 分支
+- [x] Migrate vue2 / react / svelte / angular / octane to stream-diffs only — `2.0.0-remove-monaco` 分支
+- [x] Update tests and snapshots; full suite green (313 files / 2684 tests) — `2.0.0-remove-monaco` 分支
+- [x] Clean playgrounds (deps, vite config, sandbox pages) — `2.0.0-remove-monaco` 分支
+- [x] Update documentation (en + zh), LLM docs, package descriptions — `2.0.0-remove-monaco` 分支
 
 ## Goal 2: 2.0.0 release validation
 
